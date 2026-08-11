@@ -35,9 +35,23 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Boo's voice. Speaks colour names and encouragement using the device's own
+  # speech engine, so there are no recorded files to ship and it follows the
+  # device language.
+  flutter_tts: ^4.2.0
+
+  # Game audio. Low latency pops and chimes, plus the background music loop.
+  # Chosen over a simpler player because a bubble pop has to sound the instant
+  # a child's finger lands, and because it can synthesise simple tones without
+  # any audio file at all.
+  flutter_soloud: ^3.1.10
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Dev only, never shipped in the app: builds the launcher icon sets.
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -57,10 +71,15 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # Audio is optional. These folders may be empty: the app checks for each
+    # file at startup and simply stays quiet when one is missing.
+    - assets/audio/sfx/
+    - assets/audio/music/
+
+  # Note: assets/icon/ is deliberately not bundled. It is only the source
+  # image for generating launcher icons, and Boo himself is drawn in code, so
+  # no artwork needs to ship inside the app.
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -87,3 +106,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Generates the iOS and Android launcher icons from one source image.
+# Run with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+
+  android: "launcher_icon"
+  # Android draws its own mask over an adaptive icon, so the artwork is
+  # inset slightly and sits on Bubble Sky rather than bleeding to the edge.
+  adaptive_icon_background: "#EAF9FF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+
+  ios: true
+  # iOS icons must not be transparent.
+  remove_alpha_ios: true
