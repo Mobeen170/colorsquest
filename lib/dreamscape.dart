@@ -11,6 +11,7 @@ import 'activities/pop_the_colour.dart';
 import 'app_theme.dart';
 import 'audio/audio_service.dart';
 import 'boo/boo.dart';
+import 'boo/boo_asset_catalog.dart';
 import 'colors/color_library.dart';
 import 'colors/color_mixes.dart';
 import 'colors/color_picker_logic.dart';
@@ -582,6 +583,9 @@ class _DreamscapeState extends State<Dreamscape> {
                     BooCompanionDock(
                       size: booSize,
                       mood: _mood,
+                      visualState: _booVisualState(),
+                      color: _booResultColor,
+                      tint: _booResultColor?.color,
                       alignment: _booAlignment(),
                       leanTowards: _booLean,
                       onTap: _onBooTapped,
@@ -694,6 +698,49 @@ class _DreamscapeState extends State<Dreamscape> {
       case Activity.lightToDark:
         return Alignment.bottomRight;
     }
+  }
+
+  /// Selects an expressive pose from the event that is happening now.
+  ///
+  /// Question-time choices are deliberately independent of the requested
+  /// color. A result color is only supplied by [_booResultColor] after the
+  /// child has completed an activity, so Boo can never disclose an answer.
+  BooVisualState _booVisualState() {
+    if (_celebration != null || _resolving) {
+      if (_bigCelebration) return BooVisualState.bigCelebration;
+      if (_activity == Activity.mixingLab) return BooVisualState.magic;
+      if (_activity == Activity.lightToDark) return BooVisualState.correct;
+      return BooVisualState.correct;
+    }
+
+    return switch (_mood) {
+      BooMood.gentle => BooVisualState.tryAgain,
+      BooMood.pointing => BooVisualState.pointing,
+      BooMood.thinking => BooVisualState.thinking,
+      BooMood.mixing => BooVisualState.magic,
+      BooMood.curious => BooVisualState.alert,
+      BooMood.cheer => BooVisualState.correct,
+      BooMood.zoom => BooVisualState.bigCelebration,
+      BooMood.speaking => BooVisualState.idle,
+      BooMood.waiting || BooMood.idle => switch (_activity) {
+        Activity.oddOneOut || Activity.lightToDark => BooVisualState.thinking,
+        Activity.mixingLab => BooVisualState.magic,
+        Activity.popTheColour ||
+        Activity.booChangesColour => BooVisualState.idle,
+      },
+    };
+  }
+
+  /// Result-color artwork is enabled only after success, and only for the
+  /// activities where seeing the finished family reinforces the lesson.
+  ColorEntry? get _booResultColor {
+    if (_celebration == null || !_resolving || _bigCelebration) return null;
+    return switch (_activity) {
+      Activity.mixingLab || Activity.lightToDark => _celebration,
+      Activity.popTheColour ||
+      Activity.oddOneOut ||
+      Activity.booChangesColour => null,
+    };
   }
 
   void _openCompass() {

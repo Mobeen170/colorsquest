@@ -74,6 +74,10 @@ flutter:
   assets:
     # Boo's artwork.
     - assets/images/
+    - assets/mascot/boo/core/
+    - assets/mascot/boo/colors/
+    - assets/mascot/boo/states/
+    - assets/mascot/boo/special/
 
     # Audio is optional. These folders may be empty: the app checks for each
     # file at startup and simply stays quiet when one is missing.

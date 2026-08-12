@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 
 /// A compact, branded wait state for real asynchronous work.
 ///
@@ -79,11 +80,13 @@ class ColoribooOrbitLoader extends StatefulWidget {
     required this.message,
     this.size = 210,
     this.complete = false,
+    this.visualState = BooVisualState.loading,
   });
 
   final String message;
   final double size;
   final bool complete;
+  final BooVisualState visualState;
 
   @override
   State<ColoribooOrbitLoader> createState() => _ColoribooOrbitLoaderState();
@@ -174,6 +177,9 @@ class _ColoribooOrbitLoaderState extends State<ColoribooOrbitLoader>
                     Boo(
                       size: widget.size * 0.63,
                       mood: widget.complete ? BooMood.cheer : BooMood.waiting,
+                      visualState: widget.complete
+                          ? BooVisualState.celebration
+                          : widget.visualState,
                     ),
                   ],
                 );

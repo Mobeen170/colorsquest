@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../audio/audio_service.dart';
 import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 import '../colors/color_library.dart';
 import '../colors/color_picker_logic.dart';
 import '../settings/settings.dart';
@@ -42,6 +43,7 @@ class _BooChangesColourState extends State<BooChangesColour>
     with SingleTickerProviderStateMixin {
   late final AnimationController _transition;
   late Color _shownColor;
+  late ColorEntry _shownEntry;
 
   String? _wobbling;
 
@@ -54,6 +56,7 @@ class _BooChangesColourState extends State<BooChangesColour>
     super.initState();
 
     _shownColor = widget.round.target.color;
+    _shownEntry = widget.round.target;
     _transition = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -66,6 +69,7 @@ class _BooChangesColourState extends State<BooChangesColour>
 
     if (widget.round != oldWidget.round) {
       _shownColor = widget.round.target.color;
+      _shownEntry = widget.round.target;
       _wobbling = null;
       _transition.forward(from: 0);
     }
@@ -140,9 +144,11 @@ class _BooChangesColourState extends State<BooChangesColour>
                     return Transform.scale(
                       scale: 0.86 + (0.14 * t),
                       child: Boo(
-                        // The colour stays a flat, exact aura while Boo's
-                        // face and artwork remain consistent.
+                        // A real painted family asset supplies Boo's body;
+                        // the exact target shade remains a flat, accurate aura.
                         tint: _shownColor,
+                        color: _shownEntry,
+                        visualState: BooVisualState.magic,
                         size: min(
                           shortest * 0.50,
                           constraints.maxHeight * 0.48,

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 import 'audio/audio_service.dart';
-import 'boo/boo.dart';
+import 'boo/boo_asset_catalog.dart';
 import 'dreamscape.dart';
 import 'screens/loading_screen.dart';
 import 'screens/session_end_screen.dart';
@@ -40,6 +40,7 @@ class _ColorGameAppState extends State<ColorGameApp> {
   _AppStage _stage = _AppStage.start;
   SessionSummary _lastSummary = SessionSummary.empty;
   int _sessionSerial = 0;
+  bool _shellArtworkWarmed = false;
 
   @override
   void initState() {
@@ -48,6 +49,37 @@ class _ColorGameAppState extends State<ColorGameApp> {
     // Prepare quietly so PLAY can have instant feedback. Music remains off
     // until the child explicitly enters the garden.
     unawaited(AudioService.instance.start(_settings));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_shellArtworkWarmed) return;
+    _shellArtworkWarmed = true;
+
+    // The first shell moments should never wait for a large PNG decode. These
+    // four cover Start and the deterministic loading sequence; rarer artwork
+    // remains demand-loaded to keep the image cache responsible.
+    for (final String path in <String>[
+      BooAssetCatalog.canonical.path,
+      BooAssetCatalog.loadingYellow.path,
+      BooAssetCatalog.magicPearl.path,
+      BooAssetCatalog.alertBlue.path,
+    ]) {
+      unawaited(_precacheBoo(path));
+    }
+  }
+
+  Future<void> _precacheBoo(String path) async {
+    try {
+      await precacheImage(BooAssetCatalog.providerFor(path), context);
+    } catch (error) {
+      // Rendering still has the legacy Boo fallback. Preloading is a polish
+      // optimization, never a reason to block or crash the child's flow.
+      debugPrint(
+        'Coloriboo: optional Boo preload unavailable for $path: $error',
+      );
+    }
   }
 
   @override
@@ -117,6 +149,7 @@ class _ColorGameAppState extends State<ColorGameApp> {
           onPlayAgain: _playAgain,
           onBackToStart: _backToStart,
           onBooTap: () {
+            AudioService.instance.playSparkle();
             unawaited(AudioService.instance.speak('See you soon!'));
           },
         );
@@ -146,7 +179,8 @@ class _ColorGameAppState extends State<ColorGameApp> {
       } else {
         await Future.wait<void>(<Future<void>>[
           AudioService.instance.start(_settings),
-          precacheImage(const AssetImage(Boo.artworkPath), context),
+          for (final String path in BooAssetCatalog.frequentPreloadPaths)
+            _precacheBoo(path),
         ]);
       }
     } finally {

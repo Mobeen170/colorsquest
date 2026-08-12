@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 import '../colors/color_library.dart';
 import '../session/session_summary.dart';
 import '../world/bubble_field.dart';
 import '../world/paper_background.dart';
 
 /// A warm session memory, never a score screen.
-class SessionEndScreen extends StatelessWidget {
+class SessionEndScreen extends StatefulWidget {
   const SessionEndScreen({
     super.key,
     required this.summary,
@@ -25,6 +26,43 @@ class SessionEndScreen extends StatelessWidget {
 
   /// Lets the flow owner play Boo's optional “See you soon!” line.
   final VoidCallback? onBooTap;
+
+  @override
+  State<SessionEndScreen> createState() => _SessionEndScreenState();
+}
+
+class _SessionEndScreenState extends State<SessionEndScreen> {
+  bool _showingGoodbye = false;
+
+  bool get _isBigMilestone =>
+      widget.summary.activitiesCompleted >= 10 ||
+      widget.summary.successfulInteractions >= 20 ||
+      widget.summary.uniqueColorCount >= 10;
+
+  BooVisualState get _visualState {
+    if (_showingGoodbye) return BooVisualState.goodbye;
+    if (_isBigMilestone) return BooVisualState.bigCelebration;
+    if (widget.summary.activitiesCompleted == 0 &&
+        widget.summary.successfulInteractions == 0) {
+      return BooVisualState.encouraging;
+    }
+    if (widget.summary.shadesDiscovered > 0) return BooVisualState.magic;
+    return BooVisualState.celebration;
+  }
+
+  BooMood get _mood => switch (_visualState) {
+    BooVisualState.goodbye || BooVisualState.encouraging => BooMood.gentle,
+    BooVisualState.magic => BooMood.mixing,
+    BooVisualState.bigCelebration => BooMood.zoom,
+    _ => BooMood.cheer,
+  };
+
+  void _handleBooTap() {
+    if (!_showingGoodbye) {
+      setState(() => _showingGoodbye = true);
+    }
+    widget.onBooTap?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +82,7 @@ class SessionEndScreen extends StatelessWidget {
             child: IgnorePointer(
               child: CustomPaint(
                 painter: _SessionGlowPainter(
-                  colors: summary.uniqueColorsExplored,
+                  colors: widget.summary.uniqueColorsExplored,
                 ),
               ),
             ),
@@ -76,17 +114,21 @@ class SessionEndScreen extends StatelessWidget {
                       ),
                       child: compactLandscape
                           ? _LandscapeEndContent(
-                              summary: summary,
-                              onPlayAgain: onPlayAgain,
-                              onBackToStart: onBackToStart,
-                              onBooTap: onBooTap,
+                              summary: widget.summary,
+                              onPlayAgain: widget.onPlayAgain,
+                              onBackToStart: widget.onBackToStart,
+                              onBooTap: _handleBooTap,
+                              booVisualState: _visualState,
+                              booMood: _mood,
                               availableSize: size,
                             )
                           : _PortraitEndContent(
-                              summary: summary,
-                              onPlayAgain: onPlayAgain,
-                              onBackToStart: onBackToStart,
-                              onBooTap: onBooTap,
+                              summary: widget.summary,
+                              onPlayAgain: widget.onPlayAgain,
+                              onBackToStart: widget.onBackToStart,
+                              onBooTap: _handleBooTap,
+                              booVisualState: _visualState,
+                              booMood: _mood,
                               availableSize: size,
                             ),
                     ),
@@ -107,13 +149,17 @@ class _PortraitEndContent extends StatelessWidget {
     required this.onPlayAgain,
     required this.onBackToStart,
     required this.onBooTap,
+    required this.booVisualState,
+    required this.booMood,
     required this.availableSize,
   });
 
   final SessionSummary summary;
   final VoidCallback onPlayAgain;
   final VoidCallback onBackToStart;
-  final VoidCallback? onBooTap;
+  final VoidCallback onBooTap;
+  final BooVisualState booVisualState;
+  final BooMood booMood;
   final Size availableSize;
 
   @override
@@ -127,7 +173,12 @@ class _PortraitEndContent extends StatelessWidget {
       children: <Widget>[
         const _EndHeading(),
         const SizedBox(height: 8),
-        Boo(size: booSize, mood: BooMood.zoom, onTap: onBooTap),
+        Boo(
+          size: booSize,
+          mood: booMood,
+          visualState: booVisualState,
+          onTap: onBooTap,
+        ),
         const SizedBox(height: 4),
         _DiscoveredLights(summary: summary),
         const SizedBox(height: AppSpacing.md),
@@ -145,13 +196,17 @@ class _LandscapeEndContent extends StatelessWidget {
     required this.onPlayAgain,
     required this.onBackToStart,
     required this.onBooTap,
+    required this.booVisualState,
+    required this.booMood,
     required this.availableSize,
   });
 
   final SessionSummary summary;
   final VoidCallback onPlayAgain;
   final VoidCallback onBackToStart;
-  final VoidCallback? onBooTap;
+  final VoidCallback onBooTap;
+  final BooVisualState booVisualState;
+  final BooMood booMood;
   final Size availableSize;
 
   @override
@@ -165,7 +220,12 @@ class _LandscapeEndContent extends StatelessWidget {
             children: <Widget>[
               const _EndHeading(),
               const SizedBox(height: 2),
-              Boo(size: booSize, mood: BooMood.zoom, onTap: onBooTap),
+              Boo(
+                size: booSize,
+                mood: booMood,
+                visualState: booVisualState,
+                onTap: onBooTap,
+              ),
               _DiscoveredLights(summary: summary),
             ],
           ),

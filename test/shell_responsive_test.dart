@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:colorsquest/app_theme.dart';
+import 'package:colorsquest/boo/boo.dart';
+import 'package:colorsquest/boo/boo_asset_catalog.dart';
 import 'package:colorsquest/colors/color_library.dart';
 import 'package:colorsquest/screens/loading_screen.dart';
 import 'package:colorsquest/screens/session_end_screen.dart';
 import 'package:colorsquest/screens/start_screen.dart';
 import 'package:colorsquest/session/session_summary.dart';
+import 'package:colorsquest/settings/parent_panel.dart';
 import 'package:colorsquest/settings/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -195,6 +200,161 @@ void main() {
       expect(playAgainCount, 1);
       expect(backCount, 1);
       expect(booTapCount, 1);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('semantic Boo states', () {
+    testWidgets('StartScreen keeps the canonical welcome Boo', (
+      WidgetTester tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        size: const Size(390, 844),
+        child: StartScreen(onPlay: () {}),
+      );
+
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.welcome,
+      );
+      await tester.pump(const Duration(milliseconds: 260));
+
+      await tester.tap(find.byKey(const Key('play-button')));
+      await tester.pump();
+
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.welcome,
+      );
+      await tester.pump(const Duration(milliseconds: 260));
+    });
+
+    testWidgets('LoadingScreen cycles slowly through designated Boo states', (
+      WidgetTester tester,
+    ) async {
+      final Completer<void> task = Completer<void>();
+      await _pumpShell(
+        tester,
+        size: const Size(390, 844),
+        child: LoadingScreen(
+          task: () => task.future,
+          onComplete: () {},
+          minimumDisplay: Duration.zero,
+        ),
+      );
+
+      Boo boo() => tester.widget<Boo>(find.byType(Boo));
+      expect(boo().visualState, BooVisualState.loading);
+
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(boo().visualState, BooVisualState.loading);
+
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(boo().visualState, BooVisualState.magic);
+
+      await tester.pump(const Duration(milliseconds: 1100));
+      expect(boo().visualState, BooVisualState.alert);
+
+      task.complete();
+      await tester.pump();
+      expect(boo().visualState, BooVisualState.celebration);
+      await tester.pump(const Duration(milliseconds: 240));
+    });
+
+    testWidgets('reduced motion keeps the loading Boo stable', (
+      WidgetTester tester,
+    ) async {
+      final Completer<void> task = Completer<void>();
+      await _pumpShell(
+        tester,
+        size: const Size(390, 844),
+        reduceMotion: true,
+        child: LoadingScreen(
+          task: () => task.future,
+          onComplete: () {},
+          minimumDisplay: Duration.zero,
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 3300));
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.loading,
+      );
+
+      task.complete();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+
+    testWidgets('SessionEndScreen uses milestones and settles on goodbye', (
+      WidgetTester tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        size: const Size(390, 844),
+        child: SessionEndScreen(
+          summary: _sampleSummary,
+          onPlayAgain: () {},
+          onBackToStart: () {},
+        ),
+      );
+
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.magic,
+      );
+
+      await tester.tap(find.bySemanticsLabel('Boo'));
+      await tester.pump();
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.goodbye,
+      );
+
+      await _pumpShell(
+        tester,
+        size: const Size(390, 844),
+        child: SessionEndScreen(
+          key: const ValueKey<String>('big-session'),
+          summary: SessionSummary(activitiesCompleted: 10),
+          onPlayAgain: () {},
+          onBackToStart: () {},
+        ),
+      );
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.bigCelebration,
+      );
+    });
+
+    testWidgets('grown-up settings uses one quiet waiting Boo', (
+      WidgetTester tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        size: const Size(320, 568),
+        child: Builder(
+          builder: (BuildContext context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => showParentSettings(context),
+                child: const Text('Open settings'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open settings'));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(Boo), findsOneWidget);
+      expect(
+        tester.widget<Boo>(find.byType(Boo)).visualState,
+        BooVisualState.waiting,
+      );
       expect(tester.takeException(), isNull);
     });
   });

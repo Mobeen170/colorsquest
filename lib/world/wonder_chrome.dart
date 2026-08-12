@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 import '../colors/color_library.dart';
 
 /// The child-facing name and symbol for a place in Boo's play compass.
@@ -270,6 +271,9 @@ class BooCompanionDock extends StatelessWidget {
     super.key,
     required this.size,
     required this.mood,
+    this.visualState = BooVisualState.idle,
+    this.color,
+    this.tint,
     required this.alignment,
     required this.leanTowards,
     required this.onTap,
@@ -277,6 +281,9 @@ class BooCompanionDock extends StatelessWidget {
 
   final double size;
   final BooMood mood;
+  final BooVisualState visualState;
+  final ColorEntry? color;
+  final Color? tint;
   final Alignment alignment;
   final double leanTowards;
   final VoidCallback onTap;
@@ -312,7 +319,15 @@ class BooCompanionDock extends StatelessWidget {
                 ),
               ),
             ),
-            Boo(size: size, mood: mood, leanTowards: leanTowards, onTap: onTap),
+            Boo(
+              size: size,
+              mood: mood,
+              visualState: visualState,
+              color: color,
+              tint: tint,
+              leanTowards: leanTowards,
+              onTap: onTap,
+            ),
           ],
         ),
       ),
@@ -486,14 +501,27 @@ class PlayCompassSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
-              const Text(
-                'Boo’s Play Compass',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.starlight,
-                  fontSize: 25,
-                  fontWeight: FontWeight.w900,
-                ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Boo(
+                    size: 74,
+                    mood: BooMood.pointing,
+                    visualState: BooVisualState.pointing,
+                  ),
+                  SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      'Boo’s Play Compass',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.starlight,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(

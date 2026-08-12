@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import '../boo/boo_asset_catalog.dart';
 import '../widgets/coloriboo_loading_overlay.dart';
 import '../world/bubble_field.dart';
 import '../world/paper_background.dart';
@@ -62,7 +63,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   Future<void> _runTask() async {
     widget.onTwinkle?.call();
-    _copyTimer = Timer.periodic(const Duration(milliseconds: 720), (_) {
+    _copyTimer = Timer.periodic(const Duration(milliseconds: 1100), (_) {
       if (!mounted || _complete) return;
       widget.onTwinkle?.call();
       setState(() {
@@ -116,6 +117,15 @@ class _LoadingScreenState extends State<LoadingScreen> {
   @override
   Widget build(BuildContext context) {
     final bool reduced = MediaQuery.disableAnimationsOf(context);
+    final BooVisualState visualState = _complete
+        ? BooVisualState.celebration
+        : reduced
+        ? BooVisualState.loading
+        : switch (_messageIndex) {
+            0 || 1 => BooVisualState.loading,
+            2 => BooVisualState.magic,
+            _ => BooVisualState.alert,
+          };
     return Scaffold(
       key: const Key('loading-screen'),
       body: Stack(
@@ -154,6 +164,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                                   message: _messages[_messageIndex],
                                   size: loaderSize,
                                   complete: _complete,
+                                  visualState: visualState,
                                 ),
                                 const SizedBox(width: AppSpacing.xxl),
                                 const Flexible(child: _WorldEntryCopy()),
@@ -168,6 +179,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
                                   message: _messages[_messageIndex],
                                   size: loaderSize,
                                   complete: _complete,
+                                  visualState: visualState,
                                 ),
                               ],
                             ),

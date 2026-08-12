@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 import 'settings.dart';
 
 /// The only control on any play screen.
@@ -79,16 +81,34 @@ class _ParentPanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text(
-                  'For grown-ups',
-                  style: AppTheme.settingLabel.copyWith(fontSize: 22),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'These reset when the app is closed.',
-                  style: AppTheme.microLabel,
-                  textAlign: TextAlign.center,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    const Boo(
+                      size: 54,
+                      mood: BooMood.waiting,
+                      visualState: BooVisualState.waiting,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'For grown-ups',
+                            style: AppTheme.settingLabel.copyWith(fontSize: 22),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            'These reset when the app is closed.',
+                            style: AppTheme.microLabel,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
 

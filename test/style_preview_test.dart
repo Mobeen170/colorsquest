@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Boo keeps one original image while exact colour auras change', (
+  testWidgets('Boo uses painted family art with exact colour auras', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1000, 240);
@@ -29,10 +29,16 @@ void main() {
                   'Yellow',
                   'Purple',
                 ])
-                  Boo(
-                    size: 170,
-                    mood: BooMood.waiting,
-                    tint: ColorLibrary.byName(name)!.color,
+                  Builder(
+                    builder: (BuildContext context) {
+                      final ColorEntry entry = ColorLibrary.byName(name)!;
+                      return Boo(
+                        size: 170,
+                        mood: BooMood.waiting,
+                        color: entry,
+                        tint: entry.color,
+                      );
+                    },
                   ),
               ],
             ),
@@ -44,6 +50,13 @@ void main() {
 
     expect(find.byType(Boo), findsNWidgets(5));
     expect(find.byType(Image), findsNWidgets(5));
+    expect(
+      tester
+          .widgetList<Image>(find.byType(Image))
+          .map((Image image) => (image.image as AssetImage).assetName)
+          .toSet(),
+      hasLength(5),
+    );
     expect(find.byType(ColorFiltered), findsNothing);
     expect(tester.takeException(), isNull);
   });

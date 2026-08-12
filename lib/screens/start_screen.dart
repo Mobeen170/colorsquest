@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 import '../boo/boo.dart';
+import '../boo/boo_asset_catalog.dart';
 import '../world/bubble_field.dart';
 import '../world/paper_background.dart';
 
@@ -210,7 +211,11 @@ class _StartScreenState extends State<StartScreen>
           : const Duration(milliseconds: 240),
       curve: Curves.easeOutBack,
       scale: _starting ? 1.08 : 1,
-      child: Boo(size: size, mood: _starting ? BooMood.cheer : BooMood.idle),
+      child: Boo(
+        size: size,
+        mood: _starting ? BooMood.cheer : BooMood.idle,
+        visualState: BooVisualState.welcome,
+      ),
     );
   }
 
