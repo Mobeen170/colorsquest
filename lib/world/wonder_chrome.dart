@@ -43,7 +43,7 @@ class WonderTopBar extends StatelessWidget {
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool narrow = constraints.maxWidth < 360;
         return Padding(
-          padding: EdgeInsets.fromLTRB(narrow ? 4 : 14, 8, 58, 4),
+          padding: EdgeInsets.fromLTRB(narrow ? 2 : 14, 8, narrow ? 12 : 58, 4),
           child: Row(
             children: <Widget>[
               DecoratedBox(
@@ -70,7 +70,7 @@ class WonderTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              SizedBox(width: narrow ? 4 : AppSpacing.sm),
               if (!narrow)
                 Expanded(
                   child: Text(
@@ -94,7 +94,7 @@ class WonderTopBar extends StatelessWidget {
                   onTap: onCompassTap,
                   child: Container(
                     constraints: BoxConstraints(
-                      minWidth: narrow ? 58 : AppSpacing.minTouchTarget,
+                      minWidth: narrow ? 52 : AppSpacing.minTouchTarget,
                       minHeight: 52,
                     ),
                     padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 12),
@@ -450,12 +450,14 @@ class PlayCompassSheet extends StatelessWidget {
     required this.currentIndex,
     required this.discoveries,
     required this.onSelected,
+    required this.onFinishRequested,
   });
 
   final List<PlayPlace> places;
   final int currentIndex;
   final List<ColorEntry> discoveries;
   final ValueChanged<int> onSelected;
+  final VoidCallback onFinishRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -628,6 +630,55 @@ class PlayCompassSheet extends StatelessWidget {
                           );
                         },
                       ),
+              ),
+              const SizedBox(height: 18),
+              Semantics(
+                button: true,
+                label: 'Finish for now',
+                child: _PressableGlow(
+                  onTap: onFinishRequested,
+                  child: Container(
+                    key: const Key('finish-for-now-button'),
+                    constraints: const BoxConstraints(
+                      minHeight: AppSpacing.minTouchTarget,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: AppColors.bubblePurple.withValues(alpha: 0.50),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Icon(
+                          Icons.nightlight_round,
+                          color: AppColors.bubblePurple,
+                        ),
+                        SizedBox(width: 9),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Finish for now',
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: AppColors.starlight,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

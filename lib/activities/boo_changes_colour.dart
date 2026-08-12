@@ -80,6 +80,7 @@ class _BooChangesColourState extends State<BooChangesColour>
 
   void _handleTap(ColorEntry entry, Offset position) {
     final bool correct = entry.name == widget.round.target.name;
+    AudioService.instance.playSoftBubble();
 
     if (!correct) {
       setState(() => _wobbling = entry.name);

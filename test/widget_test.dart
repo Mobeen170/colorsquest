@@ -21,9 +21,25 @@ Future<void> pumpAppAt(WidgetTester tester, Size size) async {
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  await tester.pumpWidget(const ColorGameApp());
+  await tester.pumpWidget(
+    ColorGameApp(
+      worldInitializer: () async {},
+      minimumLoadingDisplay: Duration.zero,
+    ),
+  );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> enterDreamscape(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('play-button')));
+  await tester.pump(const Duration(milliseconds: 300));
+  for (int attempt = 0; attempt < 20; attempt++) {
+    if (find.byType(Dreamscape).evaluate().isNotEmpty) break;
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.pump(const Duration(milliseconds: 500));
+  expect(find.byType(Dreamscape), findsOneWidget);
 }
 
 Future<void> openActivity(
@@ -39,11 +55,15 @@ Future<void> openActivity(
   await tester.pumpWidget(
     MediaQuery(
       data: MediaQueryData(size: size, disableAnimations: reduceMotion),
-      child: const ColorGameApp(),
+      child: ColorGameApp(
+        worldInitializer: () async {},
+        minimumLoadingDisplay: Duration.zero,
+      ),
     ),
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
+  await enterDreamscape(tester);
   await tester.tap(find.byIcon(Icons.explore_rounded));
   await tester.pump(const Duration(milliseconds: 400));
   final Finder choice = find.bySemanticsLabel(
@@ -57,23 +77,21 @@ Future<void> openActivity(
 
 void main() {
   group('opening the app', () {
-    testWidgets('goes straight into the world with no home screen', (
+    testWidgets('opens on the polished Coloriboo start screen', (
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
 
-      // The old app opened on a title card with a button. There is no longer
-      // anything a child has to press before they can play.
       expect(find.text('START GAME'), findsNothing);
-      expect(find.text('Pop. Play. Learn Colors!'), findsNothing);
-      expect(find.byType(Dreamscape), findsOneWidget);
+      expect(find.text('Pop. Play. Learn Colors!'), findsOneWidget);
+      expect(find.byKey(const Key('play-button')), findsOneWidget);
+      expect(find.byType(Dreamscape), findsNothing);
       expect(find.text('COLORIBOO'), findsOneWidget);
     });
 
-    testWidgets('shows something to tap immediately', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('PLAY reaches the endless world', (WidgetTester tester) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
       expect(find.byType(SoapBubble), findsWidgets);
     });
 
@@ -83,7 +101,7 @@ void main() {
       // No plugins are registered in a widget test, so the audio engine and
       // the voice both fail to start. The app must not care.
       await pumpAppAt(tester, const Size(390, 844));
-      await tester.pump(const Duration(seconds: 1));
+      await enterDreamscape(tester);
 
       expect(tester.takeException(), isNull);
     });
@@ -104,6 +122,7 @@ void main() {
     screens.forEach((String name, Size size) {
       testWidgets('does not overflow on a $name', (WidgetTester tester) async {
         await pumpAppAt(tester, size);
+        await enterDreamscape(tester);
 
         // Let the world drift a while in case anything grows over time.
         await tester.pump(const Duration(seconds: 2));
@@ -118,6 +137,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       await tester.tap(find.byType(ParentDot));
       await tester.pump(const Duration(milliseconds: 400));
@@ -129,6 +149,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       await tester.longPress(find.byType(ParentDot));
       await tester.pump(const Duration(milliseconds: 400));
@@ -145,6 +166,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       final Settings settings = SettingsScope.of(
         tester.element(find.byType(Dreamscape)),
@@ -173,6 +195,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       await tester.tap(find.byIcon(Icons.explore_rounded));
       await tester.pump(const Duration(milliseconds: 400));
@@ -225,6 +248,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       final int before = find.byType(SoapBubble).evaluate().length;
       if (before == 0) return;
@@ -241,6 +265,7 @@ void main() {
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
+      await enterDreamscape(tester);
 
       for (int i = 0; i < 4; i++) {
         final Finder bubbles = find.byType(SoapBubble);

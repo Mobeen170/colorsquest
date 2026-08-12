@@ -89,7 +89,11 @@ class AudioService {
   }
 
   Future<void> _initialize() async {
-    await Future.wait(<Future<void>>[_startEngine(), _startVoice()]);
+    // Game audio is the only preparation the world-entry screen waits for.
+    // Platform TTS setup is opportunistic: some devices/plugins never answer
+    // capability calls, and Boo's optional voice must not hold up play.
+    await _startEngine();
+    unawaited(_startVoice());
   }
 
   Future<void> _startEngine() async {
@@ -159,7 +163,7 @@ class AudioService {
         tts.setSpeechRate(0.38),
         tts.setVolume(0.9),
         tts.awaitSpeakCompletion(true),
-      ]).timeout(_operationTimeout);
+      ]);
       _tts = tts;
       _voiceReady = true;
     } catch (_) {

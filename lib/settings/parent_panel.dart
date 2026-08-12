@@ -16,9 +16,9 @@ class ParentDot extends StatelessWidget {
     return Semantics(
       label: 'Grown-up settings. Press and hold to open.',
       button: true,
-      onLongPress: () => _openPanel(context),
+      onLongPress: () => showParentSettings(context),
       child: GestureDetector(
-        onLongPress: () => _openPanel(context),
+        onLongPress: () => showParentSettings(context),
         behavior: HitTestBehavior.opaque,
         child: Padding(
           // A generous invisible margin, so a parent can find it easily
@@ -43,18 +43,19 @@ class ParentDot extends StatelessWidget {
       ),
     );
   }
+}
 
-  void _openPanel(BuildContext context) {
-    final Settings settings = SettingsScope.of(context);
+/// Opens the same quiet grown-up controls from the start screen and world.
+void showParentSettings(BuildContext context) {
+  final Settings settings = SettingsScope.of(context);
 
-    showDialog<void>(
-      context: context,
-      barrierColor: AppColors.darkInk.withValues(alpha: 0.32),
-      builder: (BuildContext dialogContext) {
-        return SettingsScope(settings: settings, child: const _ParentPanel());
-      },
-    );
-  }
+  showDialog<void>(
+    context: context,
+    barrierColor: AppColors.darkInk.withValues(alpha: 0.32),
+    builder: (BuildContext dialogContext) {
+      return SettingsScope(settings: settings, child: const _ParentPanel());
+    },
+  );
 }
 
 /// Four switches and nothing else.

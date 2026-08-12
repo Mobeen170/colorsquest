@@ -86,6 +86,7 @@ class _OddOneOutState extends State<OddOneOut>
 
   void _handleTap(int slot, ColorEntry entry, Offset position) {
     final bool correct = slot == _oddSlot;
+    AudioService.instance.playSoftBubble();
 
     if (!correct) {
       setState(() => _wobbling = '$slot');

@@ -8,16 +8,17 @@ import '../colors/color_library.dart';
 /// instance for Play Again and may record only the events it can verify.
 @immutable
 class SessionSummary {
-  const SessionSummary({
+  SessionSummary({
     this.activitiesCompleted = 0,
     this.successfulInteractions = 0,
     this.shadesDiscovered = 0,
-    this.colorsExplored = const <ColorEntry>[],
-  }) : assert(activitiesCompleted >= 0),
+    List<ColorEntry> colorsExplored = const <ColorEntry>[],
+  }) : colorsExplored = List<ColorEntry>.unmodifiable(colorsExplored),
+       assert(activitiesCompleted >= 0),
        assert(successfulInteractions >= 0),
        assert(shadesDiscovered >= 0);
 
-  static const SessionSummary empty = SessionSummary();
+  static final SessionSummary empty = SessionSummary();
 
   /// Completed activity rounds, rather than unique activity types.
   final int activitiesCompleted;
@@ -28,8 +29,8 @@ class SessionSummary {
   /// Shade steps truthfully encountered in Light to Dark.
   final int shadesDiscovered;
 
-  /// Colors encountered this session. Duplicate entries are allowed at the
-  /// recording boundary and are de-duplicated for the end-screen memory.
+  /// Colors encountered this session. The immutable snapshot is de-duplicated
+  /// for the end-screen memory.
   final List<ColorEntry> colorsExplored;
 
   List<ColorEntry> get uniqueColorsExplored {

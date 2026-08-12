@@ -73,7 +73,7 @@ class Boo extends StatefulWidget {
   final VoidCallback? onTap;
 
   /// The artwork. One image today, a set of poses later.
-  static const String _artwork = 'assets/images/boo.png';
+  static const String artworkPath = 'assets/images/boo.png';
 
   @override
   State<Boo> createState() => _BooState();
@@ -127,7 +127,7 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
     final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     final Widget image = Image.asset(
-      Boo._artwork,
+      Boo.artworkPath,
       width: widget.size,
       height: widget.size,
       fit: BoxFit.contain,

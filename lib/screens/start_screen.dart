@@ -14,9 +14,15 @@ import '../world/paper_background.dart';
 /// short mascot reaction, giving the owner one clear place to play the start
 /// sound and show [LoadingScreen].
 class StartScreen extends StatefulWidget {
-  const StartScreen({super.key, required this.onPlay, this.onSettings});
+  const StartScreen({
+    super.key,
+    required this.onPlay,
+    this.onPlayFeedback,
+    this.onSettings,
+  });
 
   final VoidCallback onPlay;
+  final VoidCallback? onPlayFeedback;
   final VoidCallback? onSettings;
 
   @override
@@ -53,6 +59,7 @@ class _StartScreenState extends State<StartScreen>
 
   void _beginPlay() {
     if (_starting) return;
+    widget.onPlayFeedback?.call();
     setState(() {
       _starting = true;
       _pressed = false;
@@ -255,7 +262,7 @@ class _StartScreenState extends State<StartScreen>
                   ],
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
                     Icon(
                       _starting
@@ -265,13 +272,19 @@ class _StartScreenState extends State<StartScreen>
                       size: 34,
                     ),
                     const SizedBox(width: 9),
-                    Text(
-                      _starting ? 'LET’S GO!' : 'PLAY',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.4,
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _starting ? 'LET’S GO!' : 'PLAY',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: AppColors.white,
+                            fontSize: 25,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
                       ),
                     ),
                   ],

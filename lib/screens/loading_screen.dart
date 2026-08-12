@@ -19,6 +19,7 @@ class LoadingScreen extends StatefulWidget {
     required this.task,
     required this.onComplete,
     this.onError,
+    this.onTwinkle,
     this.minimumDisplay = const Duration(milliseconds: 620),
     this.maximumTaskWait = const Duration(seconds: 8),
   });
@@ -26,6 +27,7 @@ class LoadingScreen extends StatefulWidget {
   final ColoribooLoadingTask task;
   final VoidCallback onComplete;
   final ValueChanged<Object>? onError;
+  final VoidCallback? onTwinkle;
 
   /// Prevents a one-frame flash when initialization is already warm.
   final Duration minimumDisplay;
@@ -59,8 +61,10 @@ class _LoadingScreenState extends State<LoadingScreen> {
   }
 
   Future<void> _runTask() async {
+    widget.onTwinkle?.call();
     _copyTimer = Timer.periodic(const Duration(milliseconds: 720), (_) {
       if (!mounted || _complete) return;
+      widget.onTwinkle?.call();
       setState(() {
         _messageIndex = (_messageIndex + 1) % _messages.length;
       });

@@ -121,6 +121,7 @@ class _PopTheColourState extends State<PopTheColour>
 
   void _handleTap(ColorEntry tapped, Offset position) {
     final bool correct = tapped.name == widget.round.target.name;
+    AudioService.instance.playSoftBubble();
 
     if (!correct) {
       setState(() => _wobbling = tapped.name);

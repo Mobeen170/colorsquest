@@ -99,9 +99,7 @@ class _ColorGameAppState extends State<ColorGameApp> {
           task: () => _prepareWorld(context),
           onTwinkle: AudioService.instance.playLoadingTwinkle,
           onError: (Object error) {
-            debugPrint(
-              'Coloriboo: world setup unavailable; entering safely.',
-            );
+            debugPrint('Coloriboo: world setup unavailable; entering safely.');
           },
           onComplete: _enterDreamscape,
         );
@@ -184,11 +182,16 @@ class _ColorGameAppState extends State<ColorGameApp> {
   void _backToStart() {
     if (_stage != _AppStage.sessionEnd) return;
     AudioService.instance.playButtonTap();
+    unawaited(_leaveWorld());
+  }
+
+  Future<void> _leaveWorld() async {
+    await AudioService.instance.returnToStart();
+    if (!mounted || _stage != _AppStage.sessionEnd) return;
     setState(() {
       _lastSummary = SessionSummary.empty;
       _stage = _AppStage.start;
     });
-    unawaited(AudioService.instance.returnToStart());
   }
 }
 

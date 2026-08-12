@@ -63,6 +63,7 @@ class _LightToDarkState extends State<LightToDark> {
 
     if (_selectedIndex == null) {
       setState(() => _selectedIndex = index);
+      AudioService.instance.playSoftBubble();
       AudioService.instance.playColorNote(_round.order[index].semitone);
       return;
     }
@@ -77,7 +78,7 @@ class _LightToDarkState extends State<LightToDark> {
       _round = next;
       _selectedIndex = null;
     });
-    AudioService.instance.playSnap();
+    AudioService.instance.playSoftBubble();
     widget.onRoundChanged?.call(next);
 
     if (next.isComplete && !_announced) {

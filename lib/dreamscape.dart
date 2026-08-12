@@ -16,6 +16,7 @@ import 'colors/color_mixes.dart';
 import 'colors/color_picker_logic.dart';
 import 'colors/shade_ladder.dart';
 import 'settings/parent_panel.dart';
+import 'session/session_summary.dart';
 import 'world/bubble_field.dart';
 import 'world/paper_background.dart';
 import 'world/splash_marks.dart';
@@ -30,13 +31,16 @@ enum Activity {
   lightToDark,
 }
 
-/// The whole app.
+/// Coloriboo's endless play world.
 ///
-/// There is no home screen, no menu and no results. A child opens Coloriboo
-/// and is already playing, and it never ends. Boo decides what comes next and
-/// the world simply carries on.
+/// Boo always chooses another activity after a completed round. The world
+/// only hands control back to the app shell when the child deliberately uses
+/// the optional “Finish for now” path.
 class Dreamscape extends StatefulWidget {
-  const Dreamscape({super.key});
+  const Dreamscape({super.key, required this.onFinish});
+
+  /// Called only after the child deliberately confirms “Finish for now”.
+  final ValueChanged<SessionSummary> onFinish;
 
   @override
   State<Dreamscape> createState() => _DreamscapeState();
@@ -54,6 +58,13 @@ class _DreamscapeState extends State<Dreamscape> {
   /// Unique colour lights awoken during this sitting. This is an honest
   /// session trail, not a collection that pretends to be saved.
   final List<ColorEntry> _discoveries = <ColorEntry>[];
+
+  /// Honest, in-memory memories for the optional end screen.
+  final Map<String, ColorEntry> _exploredByName = <String, ColorEntry>{};
+  int _activitiesCompleted = 0;
+  int _successfulInteractions = 0;
+  int _shadesDiscovered = 0;
+  bool _finishing = false;
 
   Activity _activity = Activity.popTheColour;
 
@@ -102,8 +113,7 @@ class _DreamscapeState extends State<Dreamscape> {
     _round = _picker.buildRound(_difficulty.step);
     _shadeRound = ShadeLadder.buildRound(random: _random);
 
-    // Boo greets the child as soon as the app opens. There is nothing to
-    // press first.
+    // Boo greets the child as soon as the world-entry transition completes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _mood = BooMood.curious);
@@ -135,6 +145,10 @@ class _DreamscapeState extends State<Dreamscape> {
     _advanceTimer?.cancel();
     AudioService.instance.stopSpeaking();
     _activityGeneration++;
+    AudioService.instance.playActivityTransition();
+    if (activity == Activity.booChangesColour) {
+      AudioService.instance.playBooMagic();
+    }
 
     setState(() {
       _activity = activity;
@@ -261,6 +275,8 @@ class _DreamscapeState extends State<Dreamscape> {
   Future<void> _onAnswer(AnswerOutcome outcome) async {
     if (_resolving || _feedbackBusy) return;
 
+    _rememberExplored(outcome.tapped);
+
     if (outcome.correct) {
       await _handleCorrect(outcome);
     } else {
@@ -276,11 +292,25 @@ class _DreamscapeState extends State<Dreamscape> {
 
     _difficulty.recordCorrect();
     _correctSinceCelebration++;
+    _activitiesCompleted++;
+    _successfulInteractions++;
 
     _addSplash(outcome.tapped.color, outcome.position);
     _rememberDiscovery(outcome.tapped);
 
-    AudioService.instance.playPop();
+    switch (_activity) {
+      case Activity.popTheColour:
+        AudioService.instance.playPop();
+      case Activity.oddOneOut:
+        AudioService.instance.playSoftBubble();
+      case Activity.booChangesColour:
+        AudioService.instance
+          ..playBooMagic()
+          ..playSparkle();
+      case Activity.mixingLab:
+      case Activity.lightToDark:
+        break;
+    }
 
     final bool bigMoment = _correctSinceCelebration >= 5;
 
@@ -294,7 +324,7 @@ class _DreamscapeState extends State<Dreamscape> {
 
     if (bigMoment) {
       _correctSinceCelebration = 0;
-      AudioService.instance.playCelebration();
+      AudioService.instance.playBigCelebration();
     } else {
       AudioService.instance.playCorrect();
     }
@@ -364,6 +394,13 @@ class _DreamscapeState extends State<Dreamscape> {
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
 
+    final ColorMix mix = _mix!;
+    _rememberExplored(ColorLibrary.byName(mix.firstName));
+    _rememberExplored(ColorLibrary.byName(mix.secondName));
+    _rememberExplored(result);
+    _activitiesCompleted++;
+    _successfulInteractions++;
+
     _addSplash(result.color, position);
     _rememberDiscovery(result);
 
@@ -374,7 +411,9 @@ class _DreamscapeState extends State<Dreamscape> {
       _bigCelebration = false;
       _celebrationSerial++;
     });
-    AudioService.instance.playSparkle();
+    AudioService.instance
+      ..playMixingMerge()
+      ..playCelebration();
 
     await _say('Look! They made ${result.name}!');
     if (!mounted || generation != _activityGeneration) return;
@@ -393,6 +432,12 @@ class _DreamscapeState extends State<Dreamscape> {
     final int generation = _activityGeneration;
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
+
+    _rememberExplored(base);
+    _activitiesCompleted++;
+    _successfulInteractions++;
+    _shadesDiscovered += _shadeRound.correctOrder.length;
+
     _addSplash(base.color, position);
     _rememberDiscovery(base);
 
@@ -403,7 +448,7 @@ class _DreamscapeState extends State<Dreamscape> {
       _bigCelebration = false;
       _celebrationSerial++;
     });
-    AudioService.instance.playSparkle();
+    AudioService.instance.playCorrect();
     await _say('Lovely! ${base.name}, from light to dark!');
     if (!mounted || generation != _activityGeneration) return;
 
@@ -419,11 +464,26 @@ class _DreamscapeState extends State<Dreamscape> {
     setState(() => _discoveries.add(entry));
   }
 
+  void _rememberExplored(ColorEntry? entry) {
+    if (entry == null) return;
+    _exploredByName.putIfAbsent(entry.name, () => entry);
+  }
+
+  SessionSummary _sessionSnapshot() {
+    return SessionSummary(
+      activitiesCompleted: _activitiesCompleted,
+      successfulInteractions: _successfulInteractions,
+      shadesDiscovered: _shadesDiscovered,
+      colorsExplored: _exploredByName.values.toList(growable: false),
+    );
+  }
+
   // ---- Building the world ----------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('dreamscape-screen'),
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
@@ -637,13 +697,17 @@ class _DreamscapeState extends State<Dreamscape> {
   }
 
   void _openCompass() {
-    if (_resolving || _feedbackBusy) return;
+    if (_resolving || _feedbackBusy || _finishing) return;
+    unawaited(_showCompass());
+  }
+
+  Future<void> _showCompass() async {
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
     AudioService.instance.stopSpeaking();
     setState(() => _mood = BooMood.curious);
 
-    showModalBottomSheet<void>(
+    final bool? finishRequested = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -656,12 +720,87 @@ class _DreamscapeState extends State<Dreamscape> {
             Navigator.of(sheetContext).pop();
             _startActivity(Activity.values[index]);
           },
+          onFinishRequested: () {
+            Navigator.of(sheetContext).pop(true);
+          },
         );
       },
-    ).whenComplete(() {
-      if (!mounted) return;
+    );
+
+    if (!mounted) return;
+    if (finishRequested == true) {
+      await _confirmFinish();
+      return;
+    }
+
+    _scheduleIdleChatter();
+    if (_mood == BooMood.curious) setState(() => _mood = BooMood.waiting);
+  }
+
+  Future<void> _confirmFinish() async {
+    if (_finishing || _resolving || _feedbackBusy) return;
+    _finishing = true;
+
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: AppColors.darkInk.withValues(alpha: 0.38),
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              key: const Key('finish-confirm-dialog'),
+              backgroundColor: AppColors.paperCream,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              icon: const Icon(
+                Icons.nightlight_round,
+                color: AppColors.bubblePurple,
+                size: 38,
+              ),
+              title: const Text(
+                'All done for now?',
+                textAlign: TextAlign.center,
+              ),
+              content: const Text(
+                'Boo will keep your sky glowing for this goodbye.',
+                textAlign: TextAlign.center,
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: <Widget>[
+                TextButton.icon(
+                  key: const Key('keep-playing-button'),
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text('Keep playing'),
+                ),
+                FilledButton.icon(
+                  key: const Key('confirm-finish-button'),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('Finish for now'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted) return;
+    if (!confirmed) {
+      _finishing = false;
       _scheduleIdleChatter();
-      if (_mood == BooMood.curious) setState(() => _mood = BooMood.waiting);
-    });
+      setState(() => _mood = BooMood.waiting);
+      return;
+    }
+
+    _activityGeneration++;
+    _idleChatterTimer?.cancel();
+    _repeatPromptTimer?.cancel();
+    _advanceTimer?.cancel();
+    await AudioService.instance.stopSpeaking();
+    if (!mounted) return;
+    AudioService.instance.playFinishSession();
+    widget.onFinish(_sessionSnapshot());
   }
 }

@@ -139,6 +139,7 @@ class _ColourMixingLabState extends State<ColourMixingLab>
   void _onDragStart(DragStartDetails details) {
     if (_stage != _MergeStage.apart) return;
     if ((details.localPosition - _homeA).distance > _radius * 1.25) return;
+    AudioService.instance.playSoftBubble();
     setState(() => _dragged = details.localPosition);
   }
 
