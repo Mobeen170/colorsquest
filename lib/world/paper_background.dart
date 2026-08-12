@@ -5,130 +5,225 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 
-/// The world a child plays in: a warm watercolour morning.
+/// Coloriboo's twilight world, with a calm neutral clearing for learning.
 ///
-/// The most important rule here is the quiet middle. Colourful washes are kept
-/// out at the edges and the centre of the screen stays almost colourless.
-/// A bright, colourful background would compete with the colours a child is
-/// trying to tell apart, which is the one thing this app cannot afford.
+/// The colour lives around the edge of the scene. The entire activity area is
+/// kept warm and nearly neutral so the background never changes how an answer
+/// colour appears to a child.
 class PaperBackgroundPainter extends CustomPainter {
   const PaperBackgroundPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
     final Rect bounds = Offset.zero & size;
+    final RRect clearing = _clearingFor(size);
 
-    _paintPaper(canvas, bounds);
-    _paintMarginWashes(canvas, size);
-    _paintQuietCentre(canvas, size);
-    _paintGrain(canvas, size);
+    _paintTwilight(canvas, bounds);
+    _paintEdgeLight(canvas, size);
+    _paintClearingGlow(canvas, clearing, size);
+    _paintNeutralClearing(canvas, clearing);
+    _paintQuietCentre(canvas, clearing);
+    _paintGrain(canvas, clearing, size);
   }
 
-  /// The cream page everything sits on.
-  void _paintPaper(Canvas canvas, Rect bounds) {
-    final Paint paint = Paint()
-      ..shader = ui.Gradient.linear(
-        bounds.topCenter,
-        bounds.bottomCenter,
-        <Color>[AppColors.paperCream, AppColors.paperWarm],
+  /// A deep blue-violet base made only from the existing Coloriboo palette.
+  void _paintTwilight(Canvas canvas, Rect bounds) {
+    final Color lowerTwilight = Color.lerp(
+      AppColors.darkInk,
+      AppColors.bubblePurple,
+      0.22,
+    )!;
+    final Color upperTwilight = Color.lerp(
+      AppColors.darkInk,
+      AppColors.booBlue,
+      0.08,
+    )!;
+
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          bounds.topCenter,
+          bounds.bottomCenter,
+          <Color>[upperTwilight, AppColors.darkInk, lowerTwilight],
+          <double>[0, 0.55, 1],
+        ),
+    );
+  }
+
+  /// Luminous colour at the margins makes the world feel larger than the
+  /// screen without placing a colour cast under the learning bubbles.
+  void _paintEdgeLight(Canvas canvas, Size size) {
+    final double reach = max(size.width, size.height) * 0.62;
+
+    void glow(Offset centre, Color color, double radius, double opacity) {
+      canvas.drawCircle(
+        centre,
+        radius,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            centre,
+            radius,
+            <Color>[
+              color.withValues(alpha: opacity),
+              color.withValues(alpha: opacity * 0.24),
+              color.withValues(alpha: 0),
+            ],
+            <double>[0, 0.42, 1],
+          ),
       );
-
-    canvas.drawRect(bounds, paint);
-  }
-
-  /// Soft colour bleeding in from the corners, like wet paint on damp paper.
-  void _paintMarginWashes(Canvas canvas, Size size) {
-    final double reach = max(size.width, size.height) * 0.55;
-
-    void wash(Offset at, Color color, double strength, double scale) {
-      final Paint paint = Paint()
-        ..shader = ui.Gradient.radial(at, reach * scale, <Color>[
-          color.withValues(alpha: strength),
-          color.withValues(alpha: 0),
-        ]);
-      canvas.drawCircle(at, reach * scale, paint);
     }
 
-    wash(
-      Offset(size.width * 0.04, size.height * 0.03),
-      AppColors.bubbleSky,
-      0.75,
-      0.72,
-    );
-    wash(
-      Offset(size.width * 0.98, size.height * 0.10),
-      AppColors.bubblePink,
-      0.30,
-      0.60,
-    );
-    wash(
-      Offset(size.width * 0.92, size.height * 0.97),
-      AppColors.bubbleMint,
+    glow(
+      Offset(-size.width * 0.08, size.height * 0.04),
+      AppColors.booBlue,
+      reach * 0.72,
       0.34,
-      0.66,
     );
-    wash(
-      Offset(size.width * 0.02, size.height * 0.92),
-      AppColors.bubblePurple,
+    glow(
+      Offset(size.width * 1.08, size.height * 0.16),
+      AppColors.bubblePink,
+      reach * 0.58,
+      0.24,
+    );
+    glow(
+      Offset(size.width * 0.92, size.height * 1.10),
+      AppColors.bubbleMint,
+      reach * 0.64,
       0.20,
-      0.58,
+    );
+    glow(
+      Offset(size.width * 0.02, size.height * 1.08),
+      AppColors.bubblePurple,
+      reach * 0.56,
+      0.27,
     );
   }
 
-  /// Lifts the middle of the screen back towards neutral.
-  ///
-  /// This is what protects colour discrimination. Without it the washes creep
-  /// inwards and start tinting the answer bubbles.
-  void _paintQuietCentre(Canvas canvas, Size size) {
-    final Offset centre = Offset(size.width / 2, size.height * 0.46);
-    final double reach = max(size.width, size.height) * 0.52;
+  /// Phones need almost all of their width for play. On a wide tablet the
+  /// clearing follows the app's capped play width and leaves richer twilight
+  /// gutters at either side.
+  RRect _clearingFor(Size size) {
+    final double shortest = min(size.width, size.height);
+    final double horizontalInset = max(10, (size.width - 960) / 2);
+    final double verticalInset = max(8, min(18, size.height * 0.018));
+    final double radius = (shortest * 0.12).clamp(30.0, 72.0);
 
-    final Paint paint = Paint()
-      ..shader = ui.Gradient.radial(
-        centre,
-        reach,
-        <Color>[
-          AppColors.playBand.withValues(alpha: 0.97),
-          AppColors.playBand.withValues(alpha: 0.86),
-          AppColors.playBand.withValues(alpha: 0),
-        ],
-        <double>[0.0, 0.45, 1.0],
-      );
-
-    canvas.drawCircle(centre, reach, paint);
+    return RRect.fromRectAndRadius(
+      Rect.fromLTRB(
+        horizontalInset,
+        verticalInset,
+        size.width - horizontalInset,
+        size.height - verticalInset,
+      ),
+      Radius.circular(radius),
+    );
   }
 
-  /// The tooth of the paper.
-  ///
-  /// Drawn from a fixed seed so it never crawls between frames, and painted
-  /// once because this layer does not animate.
-  void _paintGrain(Canvas canvas, Size size) {
-    final Random random = Random(20260811);
+  /// A cool halo separates the play clearing from the darker environment.
+  /// This is static and lives in a repaint boundary, so the blur is not paid
+  /// on every animation frame.
+  void _paintClearingGlow(Canvas canvas, RRect clearing, Size size) {
+    final double shortest = min(size.width, size.height);
+
+    canvas.drawRRect(
+      clearing.inflate(shortest * 0.012),
+      Paint()
+        ..color = AppColors.bubbleSky.withValues(alpha: 0.25)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          (shortest * 0.045).clamp(14.0, 32.0),
+        ),
+    );
+  }
+
+  /// The stage itself is deliberately neutral for perceptual accuracy.
+  void _paintNeutralClearing(Canvas canvas, RRect clearing) {
+    canvas.drawRRect(
+      clearing,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          clearing.outerRect.topCenter,
+          clearing.outerRect.bottomCenter,
+          <Color>[
+            AppColors.white.withValues(alpha: 0.97),
+            AppColors.playBand.withValues(alpha: 0.99),
+            AppColors.paperCream.withValues(alpha: 0.97),
+          ],
+          <double>[0, 0.54, 1],
+        ),
+    );
+
+    canvas.drawRRect(
+      clearing.deflate(1),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = AppColors.white.withValues(alpha: 0.72),
+    );
+  }
+
+  /// A gentle lift through the busiest part of the screen removes even the
+  /// slight warmth of the stage gradient from behind answer bubbles.
+  void _paintQuietCentre(Canvas canvas, RRect clearing) {
+    final Rect rect = clearing.outerRect;
+    final Offset centre = Offset(rect.center.dx, rect.top + rect.height * 0.47);
+    final double radius = max(rect.width, rect.height) * 0.58;
+
+    canvas.save();
+    canvas.clipRRect(clearing);
+    canvas.drawCircle(
+      centre,
+      radius,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          centre,
+          radius,
+          <Color>[
+            AppColors.playBand.withValues(alpha: 0.42),
+            AppColors.playBand.withValues(alpha: 0.18),
+            AppColors.playBand.withValues(alpha: 0),
+          ],
+          <double>[0, 0.58, 1],
+        ),
+    );
+    canvas.restore();
+  }
+
+  /// A sparse, fixed grain keeps the clearing tactile without becoming noisy.
+  void _paintGrain(Canvas canvas, RRect clearing, Size size) {
+    final Random random = Random(20260812);
+    final int count = ((size.width * size.height) / 2600)
+        .clamp(70, 480)
+        .toInt();
     final Paint paint = Paint();
 
-    final int count = ((size.width * size.height) / 900)
-        .clamp(300, 1600)
-        .toInt();
+    canvas.save();
+    canvas.clipRRect(clearing);
 
     for (int i = 0; i < count; i++) {
-      final double x = random.nextDouble() * size.width;
-      final double y = random.nextDouble() * size.height;
-      final double r = 0.6 + (random.nextDouble() * 1.5);
+      final Offset point = Offset(
+        random.nextDouble() * size.width,
+        random.nextDouble() * size.height,
+      );
+      final double radius = 0.45 + (random.nextDouble() * 0.85);
 
-      final bool dark = random.nextBool();
-      paint.color = dark
-          ? AppColors.paperShadow.withValues(alpha: 0.16)
-          : AppColors.white.withValues(alpha: 0.42);
-
-      canvas.drawCircle(Offset(x, y), r, paint);
+      paint.color = random.nextBool()
+          ? AppColors.paperShadow.withValues(alpha: 0.08)
+          : AppColors.white.withValues(alpha: 0.30);
+      canvas.drawCircle(point, radius, paint);
     }
+
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(PaperBackgroundPainter oldDelegate) => false;
 }
 
-/// The paper, ready to put behind everything else.
+/// The static world layer behind every activity.
 class PaperBackground extends StatelessWidget {
   const PaperBackground({super.key});
 

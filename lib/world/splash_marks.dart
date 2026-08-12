@@ -111,7 +111,9 @@ class SplashMarksPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(SplashMarksPainter old) =>
-      old.marks.length != marks.length || old.now != now;
+      old.marks.length != marks.length ||
+      old.marks.lastOrNull?.seed != marks.lastOrNull?.seed ||
+      old.now != now;
 }
 
 /// Keeps the splashes on the paper and blooms new ones in.
@@ -146,7 +148,8 @@ class _SplashMarksLayerState extends State<SplashMarksLayer>
   void didUpdateWidget(SplashMarksLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.marks.length != oldWidget.marks.length) {
+    if (widget.marks.length != oldWidget.marks.length ||
+        widget.marks.lastOrNull?.seed != oldWidget.marks.lastOrNull?.seed) {
       _bloomController.forward(from: 0);
     }
   }
@@ -159,6 +162,18 @@ class _SplashMarksLayerState extends State<SplashMarksLayer>
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      final DateTime settledAt = widget.marks.isEmpty
+          ? DateTime.now()
+          : widget.marks.last.bornAt.add(SplashMarksPainter._bloom);
+      return RepaintBoundary(
+        child: CustomPaint(
+          painter: SplashMarksPainter(marks: widget.marks, now: settledAt),
+          size: Size.infinite,
+        ),
+      );
+    }
+
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _bloomController,

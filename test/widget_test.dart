@@ -26,6 +26,35 @@ Future<void> pumpAppAt(WidgetTester tester, Size size) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
+Future<void> openActivity(
+  WidgetTester tester,
+  String name, {
+  Size size = const Size(390, 844),
+  bool reduceMotion = false,
+}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(
+    MediaQuery(
+      data: MediaQueryData(size: size, disableAnimations: reduceMotion),
+      child: const ColorGameApp(),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.byIcon(Icons.explore_rounded));
+  await tester.pump(const Duration(milliseconds: 400));
+  final Finder choice = find.bySemanticsLabel(
+    RegExp('^${RegExp.escape(name)}\\.'),
+  );
+  final Finder compassScroll = find.byType(Scrollable).last;
+  await tester.scrollUntilVisible(choice, 120, scrollable: compassScroll);
+  await tester.tap(choice, warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   group('opening the app', () {
     testWidgets('goes straight into the world with no home screen', (
@@ -38,6 +67,7 @@ void main() {
       expect(find.text('START GAME'), findsNothing);
       expect(find.text('Pop. Play. Learn Colors!'), findsNothing);
       expect(find.byType(Dreamscape), findsOneWidget);
+      expect(find.text('COLORIBOO'), findsOneWidget);
     });
 
     testWidgets('shows something to tap immediately', (
@@ -135,6 +165,58 @@ void main() {
       expect(wordShownAfter, isFalse);
       // Only meaningful if a word was actually visible first.
       expect(wordShownBefore || !wordShownBefore, isTrue);
+    });
+  });
+
+  group('Boo’s play compass', () {
+    testWidgets('keeps play immediate but offers all five activities', (
+      WidgetTester tester,
+    ) async {
+      await pumpAppAt(tester, const Size(390, 844));
+
+      await tester.tap(find.byIcon(Icons.explore_rounded));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Boo’s Play Compass'), findsOneWidget);
+      expect(find.text('Pop the Colour'), findsOneWidget);
+      expect(find.text('Odd One Out'), findsOneWidget);
+      expect(find.text('Boo’s Magic'), findsOneWidget);
+      expect(find.text('Mixing Lab'), findsOneWidget);
+      expect(find.text('Light to Dark'), findsOneWidget);
+    });
+  });
+
+  group('all core activities', () {
+    const List<String> coreActivities = <String>[
+      'Pop the Colour',
+      'Mixing Lab',
+      'Boo’s Magic',
+      'Odd One Out',
+    ];
+
+    for (final String activity in coreActivities) {
+      testWidgets('$activity renders on a small phone', (
+        WidgetTester tester,
+      ) async {
+        await openActivity(tester, activity, size: const Size(320, 568));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('$activity renders in compact landscape', (
+        WidgetTester tester,
+      ) async {
+        await openActivity(tester, activity, size: const Size(844, 390));
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('reduced motion keeps the core activities usable', (
+      WidgetTester tester,
+    ) async {
+      await openActivity(tester, 'Mixing Lab', reduceMotion: true);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.bySemanticsLabel(RegExp('Mix')), findsWidgets);
+      expect(tester.takeException(), isNull);
     });
   });
 

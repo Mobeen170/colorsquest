@@ -9,6 +9,7 @@ import '../colors/color_library.dart';
 import '../colors/color_picker_logic.dart';
 import '../settings/settings.dart';
 import '../world/bubble.dart';
+import '../world/wonder_chrome.dart';
 
 /// What happened when a child touched a bubble.
 class AnswerOutcome {
@@ -137,6 +138,7 @@ class _PopTheColourState extends State<PopTheColour>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -161,6 +163,7 @@ class _PopTheColourState extends State<PopTheColour>
                 options: visible,
                 target: widget.round.target,
                 drift: _drift,
+                reduceMotion: reduceMotion,
                 wobbling: _wobbling,
                 missCount: widget.missCount,
                 onTap: _handleTap,
@@ -191,36 +194,13 @@ class _Prompt extends StatelessWidget {
   Widget build(BuildContext context) {
     // Deliberately no colour swatch here. Showing the answer beside the
     // question is what made the old game pointless.
-    return Semantics(
-      label: 'Find the colour ${target.name}. Tap to hear it again.',
-      button: true,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text('Can you find', style: AppTheme.booLine),
-              const SizedBox(height: AppSpacing.xs),
-              if (showWord)
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    target.name.toUpperCase(),
-                    style: AppTheme.heroWord(width),
-                    maxLines: 1,
-                  ),
-                )
-              else
-                // With words turned off there is still a gap where the word
-                // would be, so the layout never jumps.
-                SizedBox(height: AppSizing.heroTextSize(width) * 1.1),
-            ],
-          ),
-        ),
-      ),
+    return ActivityPromptCard(
+      eyebrow: 'Can you find',
+      hero: target.name,
+      showHero: showWord,
+      width: width,
+      semanticLabel: 'Find the colour ${target.name}. Tap to hear it again.',
+      onTap: onTap,
     );
   }
 }
@@ -231,6 +211,7 @@ class _BubbleRow extends StatelessWidget {
     required this.options,
     required this.target,
     required this.drift,
+    required this.reduceMotion,
     required this.wobbling,
     required this.missCount,
     required this.onTap,
@@ -239,6 +220,7 @@ class _BubbleRow extends StatelessWidget {
   final List<ColorEntry> options;
   final ColorEntry target;
   final AnimationController drift;
+  final bool reduceMotion;
   final String? wobbling;
   final int missCount;
   final void Function(ColorEntry, Offset) onTap;
@@ -253,29 +235,49 @@ class _BubbleRow extends StatelessWidget {
         );
         final int count = max(options.length, 1);
 
-        // Bubbles size themselves from the space available, never from fixed
-        // pixel values, so nothing overflows on a small phone.
-        double diameter = AppSizing.bubbleDiameter(constraints.maxWidth, count);
-        diameter = min(diameter, constraints.maxHeight * 0.62);
-        diameter = min(diameter, shortest * 0.9);
+        // Hard rounds wrap onto two rows when one row cannot preserve the
+        // full 72px child hit target plus a clean gap.
+        final int perRow = constraints.maxWidth < count * 88
+            ? (count / 2).ceil()
+            : count;
+        final int rows = (count / perRow).ceil();
+        final double cellWidth = constraints.maxWidth / perRow;
+        final double cellHeight = constraints.maxHeight / rows;
+        double diameter = min(cellWidth - 10, cellHeight - 8);
+        diameter = min(diameter, shortest * 0.46);
+        diameter = diameter.clamp(44.0, 145.0);
 
-        return AnimatedBuilder(
-          animation: drift,
-          builder: (BuildContext context, Widget? child) {
-            return Stack(
-              children: <Widget>[
-                for (int i = 0; i < options.length; i++)
-                  _positioned(
-                    context: context,
-                    constraints: constraints,
-                    entry: options[i],
-                    index: i,
-                    total: options.length,
-                    diameter: diameter,
-                  ),
-              ],
-            );
-          },
+        return Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _BubbleOrbitPainter(count: options.length),
+                ),
+              ),
+            ),
+            AnimatedBuilder(
+              animation: reduceMotion
+                  ? const AlwaysStoppedAnimation<double>(0)
+                  : drift,
+              builder: (BuildContext context, Widget? child) {
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    for (int i = 0; i < options.length; i++)
+                      _positioned(
+                        context: context,
+                        constraints: constraints,
+                        entry: options[i],
+                        index: i,
+                        total: options.length,
+                        diameter: diameter,
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
         );
       },
     );
@@ -289,21 +291,31 @@ class _BubbleRow extends StatelessWidget {
     required int total,
     required double diameter,
   }) {
-    // Spread evenly across the width, then let each one bob on its own.
-    final double slot = (index + 0.5) / total;
+    final int perRow = constraints.maxWidth < total * 88
+        ? (total / 2).ceil()
+        : total;
+    final int rows = (total / perRow).ceil();
+    final int row = index ~/ perRow;
+    final int column = index % perRow;
+    final int inThisRow = min(perRow, total - row * perRow);
+    final double slot = (column + 0.5) / inThisRow;
     final double sway =
-        sin((drift.value * 2 * pi) + (index * 1.7)) * (diameter * 0.06);
+        (reduceMotion ? 0 : sin((drift.value * 2 * pi) + (index * 1.7))) *
+        (diameter * 0.05);
     final double bob =
-        cos((drift.value * 2 * pi) + (index * 2.3)) * (diameter * 0.14);
+        (reduceMotion ? 0 : cos((drift.value * 2 * pi) + (index * 2.3))) *
+        (diameter * 0.08);
 
     // Sit every other bubble higher than its neighbours. Bubbles rising
     // through water are never in a tidy line, and staggering them fills the
     // space so the screen looks like a world rather than a row of buttons.
-    final double spare = max(0.0, constraints.maxHeight - diameter);
-    final double stagger = (index.isEven ? -1 : 1) * (spare * 0.17);
+    final double rowHeight = constraints.maxHeight / rows;
+    final double spare = max(0.0, rowHeight - diameter);
+    final double stagger = (index.isEven ? -1 : 1) * (spare * 0.08);
 
     final double left = (slot * constraints.maxWidth) - (diameter / 2) + sway;
-    final double top = (spare / 2) + stagger + bob;
+    final double top = row * rowHeight + (spare / 2) + stagger + bob;
+    final double tapExtent = max(diameter, AppSpacing.minTouchTarget);
 
     final bool isWobbling = wobbling == entry.name;
     final bool isTarget = entry.name == target.name;
@@ -313,8 +325,14 @@ class _BubbleRow extends StatelessWidget {
     final double glow = (isTarget && missCount >= 2) ? 1 : 0;
 
     return Positioned(
-      left: left.clamp(0.0, max(0.0, constraints.maxWidth - diameter)),
-      top: top.clamp(0.0, max(0.0, constraints.maxHeight - diameter)),
+      left: (left - (tapExtent - diameter) / 2).clamp(
+        0.0,
+        max(0.0, constraints.maxWidth - tapExtent),
+      ),
+      top: (top - (tapExtent - diameter) / 2).clamp(
+        0.0,
+        max(0.0, constraints.maxHeight - tapExtent),
+      ),
       child: _WobbleOnMiss(
         active: isWobbling,
         child: Builder(
@@ -351,6 +369,45 @@ class _BubbleRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BubbleOrbitPainter extends CustomPainter {
+  const _BubbleOrbitPainter({required this.count});
+
+  final int count;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..color = AppColors.bubblePurple.withValues(alpha: 0.12);
+    final Rect orbit = Rect.fromCenter(
+      center: size.center(Offset.zero),
+      width: size.width * 0.86,
+      height: size.height * 0.58,
+    );
+    canvas.drawArc(orbit, 0.12, pi * 0.72, false, line);
+    canvas.drawArc(orbit, pi + 0.12, pi * 0.72, false, line);
+
+    final Paint dot = Paint()
+      ..color = AppColors.softInk.withValues(alpha: 0.10);
+    for (int i = 0; i < count; i++) {
+      final double angle = (2 * pi * i / max(count, 1)) - pi / 2;
+      canvas.drawCircle(
+        Offset(
+          orbit.center.dx + cos(angle) * orbit.width / 2,
+          orbit.center.dy + sin(angle) * orbit.height / 2,
+        ),
+        3,
+        dot,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BubbleOrbitPainter oldDelegate) =>
+      oldDelegate.count != count;
 }
 
 /// Shakes a bubble gently when it was not the one.
@@ -395,6 +452,7 @@ class _WobbleOnMissState extends State<_WobbleOnMiss>
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

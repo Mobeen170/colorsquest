@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 
-/// One drifting bubble in the background.
+/// One luminous mote drifting at the edge of the play world.
+///
+/// The public shape is retained for callers that construct their own field.
+/// Positions and drift are fractions of the available width; radius remains
+/// a logical-pixel size before the painter applies its small tablet scale.
 class DriftingBubble {
   DriftingBubble({
     required this.startX,
@@ -16,83 +20,91 @@ class DriftingBubble {
     required this.tint,
   });
 
-  /// Horizontal position as a share of the width.
   final double startX;
-
-  /// How far it sways left and right on the way up.
   final double drift;
-
   final double radius;
-
-  /// How many times it crosses the screen per full cycle.
   final double speed;
-
-  /// Where it starts in its journey, so they do not all rise together.
   final double offset;
-
   final double opacity;
   final Color tint;
 }
 
-/// The soft bubbles floating through the world behind everything else.
+/// Paints all ambient motes in one pass.
 ///
-/// All of them are drawn by a single painter driven by a single controller.
-/// The old home screen built fifteen separate positioned widgets and rebuilt
-/// the whole stack every frame, which is exactly what to avoid here.
+/// The glow is built from a few translucent circles rather than a blur filter.
+/// That keeps the field inexpensive while other parts of the scene animate.
 class BubbleFieldPainter extends CustomPainter {
   const BubbleFieldPainter({required this.bubbles, required this.t});
 
   final List<DriftingBubble> bubbles;
 
-  /// Progress through the loop, 0 to 1.
+  /// Progress through the loop, from 0 to 1.
   final double t;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint();
+    if (size.isEmpty) return;
+
+    final double sizeScale = (min(size.width, size.height) / 390).clamp(
+      0.82,
+      1.35,
+    );
+    final Paint paint = Paint()..isAntiAlias = true;
 
     for (final DriftingBubble bubble in bubbles) {
-      // Rise from just below the screen to just above it.
-      final double progress = (t * bubble.speed + bubble.offset) % 1.0;
-      final double y = size.height * (1.15 - (progress * 1.3));
-
+      final double progress = (t * bubble.speed + bubble.offset) % 1;
+      final double y = size.height * (1.10 - (progress * 1.20));
       final double sway =
-          sin((progress * 2 * pi) + bubble.offset * 6) * bubble.drift;
+          sin((progress * 2 * pi) + (bubble.offset * 2 * pi)) * bubble.drift;
       final double x = (bubble.startX + sway) * size.width;
-
-      // Fade in and out at the ends so nothing pops into existence.
       final double edgeFade = sin(progress * pi).clamp(0.0, 1.0);
       final double alpha = bubble.opacity * edgeFade;
 
-      if (alpha <= 0.01) continue;
+      if (alpha <= 0.015) continue;
 
       final Offset centre = Offset(x, y);
+      final double radius = bubble.radius * sizeScale;
+
+      // A broad colored aura, then a restrained translucent core.
+      paint
+        ..style = PaintingStyle.fill
+        ..color = bubble.tint.withValues(alpha: alpha * 0.16);
+      canvas.drawCircle(centre, radius * 1.85, paint);
+
+      paint.color = bubble.tint.withValues(alpha: alpha * 0.34);
+      canvas.drawCircle(centre, radius, paint);
+
+      // A fine white rim and pinprick catchlight make this read as light, not
+      // another answer bubble. Motes remain small and live near the margins.
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.8, radius * 0.08)
+        ..color = AppColors.white.withValues(alpha: alpha * 0.42);
+      canvas.drawCircle(centre, radius * 0.92, paint);
 
       paint
-        ..color = bubble.tint.withValues(alpha: alpha * 0.5)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, bubble.radius * 0.5);
-      canvas.drawCircle(centre, bubble.radius, paint);
-
-      paint
-        ..color = AppColors.white.withValues(alpha: alpha * 0.55)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, bubble.radius * 0.22);
+        ..style = PaintingStyle.fill
+        ..color = AppColors.white.withValues(alpha: alpha * 0.72);
       canvas.drawCircle(
-        centre.translate(-bubble.radius * 0.3, -bubble.radius * 0.32),
-        bubble.radius * 0.26,
+        centre.translate(-radius * 0.30, -radius * 0.32),
+        max(0.9, radius * 0.18),
         paint,
       );
     }
   }
 
   @override
-  bool shouldRepaint(BubbleFieldPainter old) => old.t != t;
+  bool shouldRepaint(BubbleFieldPainter oldDelegate) {
+    return oldDelegate.t != t || !identical(oldDelegate.bubbles, bubbles);
+  }
 }
 
-/// Background bubbles drifting slowly upward.
+/// Low-cost ambient lights drifting around the neutral play clearing.
 class BubbleField extends StatefulWidget {
   const BubbleField({super.key, this.count = 24});
 
-  /// Kept small on purpose. This layer must never cost much.
+  /// Maximum number of motes. The actual count responds to screen area and
+  /// short landscape heights, so smaller devices do less work.
   final int count;
 
   @override
@@ -102,10 +114,11 @@ class BubbleField extends StatefulWidget {
 class _BubbleFieldState extends State<BubbleField>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final List<DriftingBubble> _bubbles;
+  late List<DriftingBubble> _bubbles;
+  bool _reduceMotion = false;
 
   static const List<Color> _tints = <Color>[
-    AppColors.bubbleSky,
+    AppColors.booBlue,
     AppColors.bubbleMint,
     AppColors.bubblePink,
     AppColors.bubblePurple,
@@ -115,24 +128,64 @@ class _BubbleFieldState extends State<BubbleField>
   @override
   void initState() {
     super.initState();
-
-    final Random random = Random(7);
-    _bubbles = List<DriftingBubble>.generate(widget.count, (int i) {
-      return DriftingBubble(
-        startX: 0.04 + (random.nextDouble() * 0.92),
-        drift: 0.02 + (random.nextDouble() * 0.06),
-        radius: 8 + (random.nextDouble() * 26),
-        speed: 0.55 + (random.nextDouble() * 0.7),
-        offset: random.nextDouble(),
-        opacity: 0.18 + (random.nextDouble() * 0.30),
-        tint: _tints[i % _tints.length],
-      );
-    });
-
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 26),
-    )..repeat();
+      duration: const Duration(seconds: 34),
+    );
+    _buildMotes();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (reduceMotion == _reduceMotion && _controller.isAnimating) return;
+
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(BubbleField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.count != oldWidget.count) _buildMotes();
+  }
+
+  void _buildMotes() {
+    final Random random = Random(7);
+    final int count = max(0, widget.count);
+
+    _bubbles = List<DriftingBubble>.generate(count, (int index) {
+      final bool leftEdge = index.isEven;
+
+      return DriftingBubble(
+        // Keep colored ambience at the margins. The educational choices stay
+        // over the neutral clearing and cannot be confused with these motes.
+        startX: leftEdge
+            ? 0.015 + (random.nextDouble() * 0.12)
+            : 0.865 + (random.nextDouble() * 0.12),
+        drift: 0.008 + (random.nextDouble() * 0.025),
+        radius: 3.5 + (random.nextDouble() * 7.5),
+        speed: 0.48 + (random.nextDouble() * 0.52),
+        offset: random.nextDouble(),
+        opacity: 0.34 + (random.nextDouble() * 0.30),
+        tint: _tints[index % _tints.length],
+      );
+    }, growable: false);
+  }
+
+  int _responsiveCount(Size size) {
+    if (_bubbles.isEmpty) return 0;
+
+    int wanted = ((size.width * size.height) / 23000).round();
+    if (size.height < 500) wanted -= 4;
+    wanted = wanted.clamp(7, 24);
+    return min(wanted, _bubbles.length);
   }
 
   @override
@@ -143,29 +196,37 @@ class _BubbleFieldState extends State<BubbleField>
 
   @override
   Widget build(BuildContext context) {
-    // Respect a device that has been told to keep motion to a minimum.
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return RepaintBoundary(
-        child: CustomPaint(
-          painter: BubbleFieldPainter(bubbles: _bubbles, t: 0.25),
-          size: Size.infinite,
-        ),
-      );
-    }
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final Size size = Size(constraints.maxWidth, constraints.maxHeight);
+        final List<DriftingBubble> visible = _bubbles
+            .take(_responsiveCount(size))
+            .toList(growable: false);
 
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (BuildContext context, Widget? child) {
-          return CustomPaint(
-            painter: BubbleFieldPainter(
-              bubbles: _bubbles,
-              t: _controller.value,
+        if (_reduceMotion) {
+          return RepaintBoundary(
+            child: CustomPaint(
+              painter: BubbleFieldPainter(bubbles: visible, t: 0.31),
+              size: Size.infinite,
             ),
-            size: Size.infinite,
           );
-        },
-      ),
+        }
+
+        return RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext context, Widget? child) {
+              return CustomPaint(
+                painter: BubbleFieldPainter(
+                  bubbles: visible,
+                  t: _controller.value,
+                ),
+                size: Size.infinite,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

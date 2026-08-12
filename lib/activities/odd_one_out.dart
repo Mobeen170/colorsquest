@@ -8,6 +8,7 @@ import '../audio/audio_service.dart';
 import '../colors/color_library.dart';
 import '../settings/settings.dart';
 import '../world/bubble.dart';
+import '../world/wonder_chrome.dart';
 import 'pop_the_colour.dart';
 
 /// "Which one is different?"
@@ -103,53 +104,31 @@ class _OddOneOutState extends State<OddOneOut>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints outer) {
         return Column(
           children: <Widget>[
-            Semantics(
-              label: 'Find the bubble that is different. Tap to hear again.',
-              button: true,
-              child: GestureDetector(
-                onTap: widget.onBooTapped,
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text('Which one is', style: AppTheme.booLine),
-                      const SizedBox(height: AppSpacing.xs),
-                      if (settings.words)
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'DIFFERENT?',
-                            style: AppTheme.heroWord(outer.maxWidth),
-                            maxLines: 1,
-                          ),
-                        )
-                      else
-                        SizedBox(
-                          height: AppSizing.heroTextSize(outer.maxWidth) * 1.1,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+            ActivityPromptCard(
+              eyebrow: 'Which one is',
+              hero: 'Different?',
+              showHero: settings.words,
+              width: outer.maxWidth,
+              icon: Icons.scatter_plot_rounded,
+              semanticLabel:
+                  'Find the bubble that is different. Tap to hear again.',
+              onTap: widget.onBooTapped,
             ),
             const SizedBox(height: AppSpacing.md),
-            Expanded(child: _grid()),
+            Expanded(child: _grid(reduceMotion)),
           ],
         );
       },
     );
   }
 
-  Widget _grid() {
+  Widget _grid(bool reduceMotion) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         // Lay the bubbles out in up to two rows so six still fit on a narrow
@@ -163,13 +142,17 @@ class _OddOneOutState extends State<OddOneOut>
           constraints.maxWidth,
           perRow,
         );
-        diameter = min(diameter, (constraints.maxHeight / rows) * 0.78);
-        diameter = max(diameter, 56);
+        final double rowHeight = constraints.maxHeight / rows;
+        diameter = min(diameter, max(32, rowHeight - 8));
+        diameter = diameter.clamp(32.0, 160.0);
 
         return AnimatedBuilder(
-          animation: _drift,
+          animation: reduceMotion
+              ? const AlwaysStoppedAnimation<double>(0)
+              : _drift,
           builder: (BuildContext context, Widget? child) {
             return Stack(
+              clipBehavior: Clip.none,
               children: <Widget>[
                 for (int i = 0; i < widget.total; i++)
                   _bubbleAt(
@@ -178,6 +161,7 @@ class _OddOneOutState extends State<OddOneOut>
                     rows: rows,
                     diameter: diameter,
                     constraints: constraints,
+                    reduceMotion: reduceMotion,
                   ),
               ],
             );
@@ -193,6 +177,7 @@ class _OddOneOutState extends State<OddOneOut>
     required int rows,
     required double diameter,
     required BoxConstraints constraints,
+    required bool reduceMotion,
   }) {
     final int row = slot ~/ perRow;
     final int column = slot % perRow;
@@ -204,19 +189,22 @@ class _OddOneOutState extends State<OddOneOut>
     final double slotY = rows == 1 ? 0.5 : (row + 0.5) / rows;
 
     final double sway =
-        sin((_drift.value * 2 * pi) + (slot * 1.9)) * (diameter * 0.05);
+        (reduceMotion ? 0 : sin((_drift.value * 2 * pi) + (slot * 1.9))) *
+        (diameter * 0.05);
     final double bob =
-        cos((_drift.value * 2 * pi) + (slot * 2.1)) * (diameter * 0.09);
+        (reduceMotion ? 0 : cos((_drift.value * 2 * pi) + (slot * 2.1))) *
+        (diameter * 0.09);
 
     final bool isOdd = slot == _oddSlot;
     final ColorEntry entry = isOdd ? widget.odd : widget.common;
 
-    final double left = (slotX * constraints.maxWidth) - (diameter / 2) + sway;
-    final double top = (slotY * constraints.maxHeight) - (diameter / 2) + bob;
+    final double tapExtent = max(diameter, AppSpacing.minTouchTarget);
+    final double left = (slotX * constraints.maxWidth) - (tapExtent / 2) + sway;
+    final double top = (slotY * constraints.maxHeight) - (tapExtent / 2) + bob;
 
     return Positioned(
-      left: left.clamp(0.0, max(0.0, constraints.maxWidth - diameter)),
-      top: top.clamp(0.0, max(0.0, constraints.maxHeight - diameter)),
+      left: left.clamp(0.0, max(0.0, constraints.maxWidth - tapExtent)),
+      top: top.clamp(0.0, max(0.0, constraints.maxHeight - tapExtent)),
       child: _WobbleWrapper(
         active: _wobbling == '$slot',
         child: Builder(
@@ -292,6 +280,7 @@ class _WobbleWrapperState extends State<_WobbleWrapper>
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

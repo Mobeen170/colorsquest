@@ -9,6 +9,7 @@ import '../colors/color_library.dart';
 import '../colors/color_mixes.dart';
 import '../settings/settings.dart';
 import '../world/merge_physics.dart';
+import '../world/wonder_chrome.dart';
 
 /// How far along the merge is.
 enum _MergeStage {
@@ -135,6 +136,12 @@ class _ColourMixingLabState extends State<ColourMixingLab>
     }
   }
 
+  void _onDragStart(DragStartDetails details) {
+    if (_stage != _MergeStage.apart) return;
+    if ((details.localPosition - _homeA).distance > _radius * 1.25) return;
+    setState(() => _dragged = details.localPosition);
+  }
+
   void _onDragEnd() {
     if (_stage != _MergeStage.apart) return;
     // Not close enough. Let it drift back so the child can try again.
@@ -146,6 +153,18 @@ class _ColourMixingLabState extends State<ColourMixingLab>
 
     setState(() => _stage = _MergeStage.merging);
     AudioService.instance.playSnap();
+
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _merge.value = 1;
+      setState(() => _stage = _MergeStage.settled);
+      _settle.value = 1;
+      if (!_announced) {
+        _announced = true;
+        AudioService.instance.playColorNote(_result.semitone, withThird: true);
+        widget.onMixed(_result, const Offset(0.5, 0.45));
+      }
+      return;
+    }
 
     _merge.forward(from: 0).then((_) {
       if (!mounted) return;
@@ -163,60 +182,29 @@ class _ColourMixingLabState extends State<ColourMixingLab>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Column(
       children: <Widget>[
-        Semantics(
-          label:
+        ActivityPromptCard(
+          eyebrow: _stage == _MergeStage.settled
+              ? 'Together they make'
+              : '${_first.name}  +  ${_second.name}',
+          hero: _stage == _MergeStage.settled ? _result.name : 'Push together!',
+          showHero: settings.words,
+          width: MediaQuery.sizeOf(context).width,
+          icon: Icons.science_rounded,
+          semanticLabel:
               'Drag the ${_first.name} bubble into the ${_second.name} bubble '
               'to mix them. Tap to hear again.',
-          button: true,
-          child: GestureDetector(
-            onTap: widget.onBooTapped,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    _stage == _MergeStage.settled
-                        ? 'Together they make'
-                        : 'Push them together!',
-                    style: AppTheme.booLine,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  if (settings.words && _stage == _MergeStage.settled)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        _result.name.toUpperCase(),
-                        style: AppTheme.heroWord(
-                          MediaQuery.sizeOf(context).width,
-                        ),
-                        maxLines: 1,
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      height:
-                          AppSizing.heroTextSize(
-                            MediaQuery.sizeOf(context).width,
-                          ) *
-                          1.1,
-                    ),
-                ],
-              ),
-            ),
-          ),
+          onTap: widget.onBooTapped,
         ),
-        Expanded(child: _playArea()),
+        Expanded(child: _playArea(reduceMotion)),
       ],
     );
   }
 
-  Widget _playArea() {
+  Widget _playArea(bool reduceMotion) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final Size size = Size(constraints.maxWidth, constraints.maxHeight);
@@ -229,26 +217,41 @@ class _ColourMixingLabState extends State<ColourMixingLab>
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onPanStart: _onDragStart,
           onPanUpdate: (DragUpdateDetails d) => _onDragUpdate(d, size),
           onPanEnd: (_) => _onDragEnd(),
-          child: AnimatedBuilder(
-            animation: Listenable.merge(<Listenable>[_merge, _settle]),
-            builder: (BuildContext context, Widget? child) {
-              return CustomPaint(
-                size: size,
-                painter: _MergePainter(
-                  colorA: _first.color,
-                  colorB: _second.color,
-                  colorResult: _result.color,
-                  centerA: _positionA,
-                  centerB: _homeB,
-                  radius: _radius,
-                  mergeProgress: _merge.value,
-                  settleProgress: _settle.value,
-                  merged: _stage != _MergeStage.apart,
-                ),
-              );
-            },
+          child: Semantics(
+            button: _stage == _MergeStage.apart,
+            label:
+                'Mix ${_first.name} and ${_second.name}. '
+                'Drag the first colour, or tap twice to mix.',
+            onTap: _stage == _MergeStage.apart ? _beginMerge : null,
+            child: GestureDetector(
+              onDoubleTap: _stage == _MergeStage.apart ? _beginMerge : null,
+              child: AnimatedBuilder(
+                animation: reduceMotion
+                    ? const AlwaysStoppedAnimation<double>(1)
+                    : Listenable.merge(<Listenable>[_merge, _settle]),
+                builder: (BuildContext context, Widget? child) {
+                  return CustomPaint(
+                    size: size,
+                    painter: _MergePainter(
+                      colorA: _first.color,
+                      colorB: _second.color,
+                      colorResult: _result.color,
+                      centerA: _positionA,
+                      centerB: _homeB,
+                      radius: _radius,
+                      mergeProgress: reduceMotion && _stage != _MergeStage.apart
+                          ? 1
+                          : _merge.value,
+                      settleProgress: reduceMotion ? 1 : _settle.value,
+                      merged: _stage != _MergeStage.apart,
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         );
       },
@@ -307,12 +310,13 @@ class _MergePainter extends CustomPainter {
         <double>[0.0, 0.34, 0.66, 1.0],
       );
 
-    _paintShadow(canvas, shape);
+    _paintHalo(canvas, centerA, radius, colorA);
+    _paintHalo(canvas, centerB, radius, colorB);
     canvas.drawPath(shape, paint);
-    _paintRim(canvas, shape);
+    _paintRim(canvas, shape, colorA);
 
-    _paintGloss(canvas, centerA, radius);
-    _paintGloss(canvas, centerB, radius);
+    _paintShine(canvas, shape, centerA, radius);
+    _paintShine(canvas, shape, centerB, radius);
   }
 
   /// One bubble of the new colour, still wobbling from the join.
@@ -341,61 +345,73 @@ class _MergePainter extends CustomPainter {
         Color.lerp(colorA, colorResult, mergeProgress.clamp(0.0, 1.0)) ??
         colorResult;
 
-    _paintShadow(canvas, shape);
+    _paintHalo(canvas, middle, grown, blended);
     canvas.drawPath(
       shape,
       Paint()
-        ..shader = ui.Gradient.radial(
-          middle.translate(-grown * 0.33, -grown * 0.38),
-          grown * 1.5,
-          <Color>[_lighten(blended, 0.26), blended, _darken(blended, 0.16)],
-          <double>[0.0, 0.52, 1.0],
+        ..shader = ui.Gradient.linear(
+          Offset(middle.dx, middle.dy - grown),
+          Offset(middle.dx, middle.dy + grown),
+          <Color>[_lighten(blended, 0.07), blended],
         ),
     );
-    _paintRim(canvas, shape);
-    _paintGloss(canvas, middle, grown);
+    _paintRim(canvas, shape, blended);
+    _paintShine(canvas, shape, middle, grown);
   }
 
-  void _paintShadow(Canvas canvas, Path shape) {
-    canvas.drawPath(
-      shape.shift(Offset(0, radius * 0.16)),
+  /// The soft coloured glow that stands in for a shadow.
+  void _paintHalo(Canvas canvas, Offset centre, double r, Color color) {
+    canvas.drawCircle(
+      centre,
+      r * 1.05,
       Paint()
-        ..color = AppColors.paperShadow.withValues(alpha: 0.3)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.24),
+        ..color = color.withValues(alpha: 0.3)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.22),
     );
   }
 
-  void _paintRim(Canvas canvas, Path shape) {
+  /// The thick light rim that makes the shape read as a sticker.
+  void _paintRim(Canvas canvas, Path shape, Color color) {
+    final HSLColor hsl = HSLColor.fromColor(color);
+
+    final Color rim = color.computeLuminance() > 0.72
+        ? hsl.withLightness((hsl.lightness - 0.22).clamp(0.0, 1.0)).toColor()
+        : AppColors.white;
+
     canvas.drawPath(
       shape,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = radius * 0.075
-        ..shader = ui.Gradient.sweep(
-          Offset.lerp(centerA, centerB, 0.5)!,
-          <Color>[
-            AppColors.bubblePink.withValues(alpha: 0.85),
-            AppColors.sunnyPop.withValues(alpha: 0.8),
-            AppColors.bubbleMint.withValues(alpha: 0.85),
-            AppColors.bubbleSky.withValues(alpha: 0.9),
-            AppColors.bubblePurple.withValues(alpha: 0.75),
-            AppColors.bubblePink.withValues(alpha: 0.85),
-          ],
-          <double>[0.0, 0.2, 0.42, 0.62, 0.82, 1.0],
-        ),
+        ..strokeWidth = radius * 0.085
+        ..color = rim.withValues(alpha: 0.95),
     );
   }
 
-  void _paintGloss(Canvas canvas, Offset centre, double r) {
+  /// One clean sweep of shine, clipped to the shape so it follows the edge.
+  void _paintShine(Canvas canvas, Path shape, Offset centre, double r) {
     canvas.save();
-    canvas.translate(centre.dx - (r * 0.36), centre.dy - (r * 0.42));
-    canvas.rotate(-0.55);
+    canvas.clipPath(shape);
+
+    canvas.save();
+    canvas.translate(centre.dx - (r * 0.30), centre.dy - (r * 0.40));
+    canvas.rotate(-0.6);
     canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: r * 0.6, height: r * 0.32),
+      Rect.fromCenter(center: Offset.zero, width: r * 0.95, height: r * 0.52),
       Paint()
-        ..color = AppColors.white.withValues(alpha: 0.9)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.05),
+        ..color = AppColors.white.withValues(alpha: 0.55)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.10),
     );
+    canvas.restore();
+
+    canvas.save();
+    canvas.translate(centre.dx - (r * 0.38), centre.dy - (r * 0.46));
+    canvas.rotate(-0.6);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset.zero, width: r * 0.40, height: r * 0.20),
+      Paint()..color = AppColors.white.withValues(alpha: 0.92),
+    );
+    canvas.restore();
+
     canvas.restore();
   }
 
@@ -403,13 +419,6 @@ class _MergePainter extends CustomPainter {
     final HSLColor hsl = HSLColor.fromColor(color);
     return hsl
         .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  Color _darken(Color color, double amount) {
-    final HSLColor hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
         .toColor();
   }
 
@@ -422,5 +431,6 @@ class _MergePainter extends CustomPainter {
       old.settleProgress != settleProgress ||
       old.merged != merged ||
       old.colorA != colorA ||
-      old.colorB != colorB;
+      old.colorB != colorB ||
+      old.colorResult != colorResult;
 }

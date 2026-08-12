@@ -16,6 +16,7 @@ class ParentDot extends StatelessWidget {
     return Semantics(
       label: 'Grown-up settings. Press and hold to open.',
       button: true,
+      onLongPress: () => _openPanel(context),
       child: GestureDetector(
         onLongPress: () => _openPanel(context),
         behavior: HitTestBehavior.opaque,
@@ -138,18 +139,15 @@ class _Toggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: <Widget>[
-          Expanded(child: Text(label, style: AppTheme.settingLabel)),
-          Switch(
-            value: value,
-            activeThumbColor: AppColors.white,
-            activeTrackColor: AppColors.booBlue,
-            onChanged: onChanged,
-          ),
-        ],
+    return MergeSemantics(
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        minTileHeight: AppSpacing.minTouchTarget,
+        title: Text(label, style: AppTheme.settingLabel),
+        value: value,
+        activeThumbColor: AppColors.white,
+        activeTrackColor: AppColors.booBlue,
+        onChanged: onChanged,
       ),
     );
   }

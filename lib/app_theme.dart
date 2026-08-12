@@ -21,6 +21,17 @@ class AppColors {
   static const Color softInk = Color(0xFF64748B);
   static const Color white = Color(0xFFFFFFFF);
 
+  // ---- Boo's Wonder Sky -------------------------------------------------
+  //
+  // Twilight belongs to the world around the activity. The learning stage
+  // remains neutral so a background hue never changes how an answer reads.
+  static const Color twilight = Color(0xFF171B35);
+  static const Color twilightLift = Color(0xFF292B56);
+  static const Color starlight = Color(0xFFF4F2FF);
+  static const Color glass = Color(0xDDFEFEFF);
+  static const Color glassLine = Color(0xA6FFFFFF);
+  static const Color moonInk = Color(0xFF303653);
+
   // ---- Soap & Sunlight paper surfaces -----------------------------------
   //
   // The world is a warm watercolour morning. These are the paper it is
@@ -83,10 +94,10 @@ class AppSizing {
 
   /// Size of the hero color word.
   static double heroTextSize(double width) {
-    if (width < 360) return 44;
-    if (width < 420) return 56;
-    if (width < 600) return 64;
-    return 88;
+    if (width < 360) return 38;
+    if (width < 420) return 46;
+    if (width < 600) return 54;
+    return 64;
   }
 
   /// Boo's diameter, as a share of the shortest side.
@@ -108,11 +119,20 @@ class AppSizing {
     final double gaps = AppSpacing.minBubbleGap * (count + 1);
     final double raw = (availableWidth - gaps) / count;
 
-    return raw.clamp(56.0, 190.0);
+    return raw.clamp(52.0, 160.0);
   }
 
   /// True when the layout should use the roomier tablet arrangement.
+  ///
+  /// Width alone misclassifies a landscape phone, so callers that know the
+  /// height should prefer [isExpanded].
   static bool isTablet(double width) => width >= 600;
+
+  static bool isExpanded(Size size) =>
+      size.shortestSide >= 600 && size.longestSide >= 900;
+
+  static bool isCompactLandscape(Size size) =>
+      size.width > size.height && size.height < 520;
 }
 
 /// Builds the single ThemeData used by the whole app.
@@ -126,7 +146,7 @@ class AppTheme {
   /// system font instead of failing to build.
   static const String? fontFamily = null;
 
-  /// Coloriboo's warm, papery theme.
+  /// Coloriboo's luminous twilight theme with a neutral learning surface.
   static ThemeData light() {
     // Start from Boo Blue, then force the exact brand colors so they are not
     // shifted by Material's automatic color generation.
@@ -139,7 +159,7 @@ class AppTheme {
           onPrimary: AppColors.white,
           secondary: AppColors.bubblePurple,
           onSecondary: AppColors.white,
-          surface: AppColors.paperCream,
+          surface: AppColors.playBand,
           onSurface: AppColors.darkInk,
         );
 
@@ -147,7 +167,7 @@ class AppTheme {
       useMaterial3: true,
       fontFamily: fontFamily,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.paperCream,
+      scaffoldBackgroundColor: AppColors.twilight,
 
       // Dark Ink for normal text, Soft Ink for quieter supporting text.
       textTheme: ThemeData.light().textTheme
@@ -156,6 +176,11 @@ class AppTheme {
             bodySmall: const TextStyle(color: AppColors.softInk),
             labelSmall: const TextStyle(color: AppColors.softInk),
           ),
+      splashFactory: InkSparkle.splashFactory,
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        modalBarrierColor: Color(0xA6171B35),
+      ),
     );
   }
 
@@ -164,20 +189,20 @@ class AppTheme {
     return TextStyle(
       fontFamily: fontFamily,
       fontSize: AppSizing.heroTextSize(width),
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w900,
       color: AppColors.darkInk,
-      letterSpacing: 1.5,
-      height: 1.1,
+      letterSpacing: 0.8,
+      height: 1.02,
     );
   }
 
   /// What Boo is saying, written down.
   static const TextStyle booLine = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 22,
-    fontWeight: FontWeight.w600,
-    color: AppColors.softInk,
-    height: 1.3,
+    fontSize: 20,
+    fontWeight: FontWeight.w700,
+    color: AppColors.moonInk,
+    height: 1.22,
   );
 
   /// Quiet supporting label.

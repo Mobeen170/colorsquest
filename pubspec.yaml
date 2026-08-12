@@ -72,14 +72,16 @@ flutter:
   uses-material-design: true
 
   assets:
+    # Boo's artwork.
+    - assets/images/
+
     # Audio is optional. These folders may be empty: the app checks for each
     # file at startup and simply stays quiet when one is missing.
     - assets/audio/sfx/
     - assets/audio/music/
 
   # Note: assets/icon/ is deliberately not bundled. It is only the source
-  # image for generating launcher icons, and Boo himself is drawn in code, so
-  # no artwork needs to ship inside the app.
+  # image used to generate the launcher icons.
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

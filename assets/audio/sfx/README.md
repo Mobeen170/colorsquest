@@ -1,18 +1,8 @@
-# Sound effects
+# Coloriboo sound effects
 
-Drop properly licensed `.mp3` files here using these exact names.
+These WAV files are original deterministic syntheses made by
+`tools/generate_coloriboo_audio/generate.py`. They are stereo, 16-bit PCM at
+44.1 kHz and intentionally soft, short, and free of harsh error sounds.
 
-| File | Used for |
-| --- | --- |
-| `bubble_pop.mp3` | popping a colour bubble |
-| `bubble_soft.mp3` | a gentle wrong-tap wobble (never a buzzer) |
-| `sparkle.mp3` | a colour being revealed or mixed |
-| `correct.mp3` | small correct-answer chime |
-| `try_again.mp3` | soft encouraging retry |
-| `drag_snap.mp3` | a dragged bubble snapping into place |
-| `celebration.mp3` | the occasional big celebration |
-
-Every file is **optional**. `AudioService` checks for each one at startup and
-silently skips any that are missing, so the app always runs.
-
-Suggested sources: Pixabay, Mixkit. Keep each clip short and quiet.
+The app preloads them once and still treats every file as optional: a missing
+or unreadable asset never blocks play.

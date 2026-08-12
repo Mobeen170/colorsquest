@@ -12,15 +12,14 @@ import '../settings/settings.dart';
 import '../world/bubble.dart';
 import 'pop_the_colour.dart';
 
-/// "What colour am I?"
+/// "What colour is Boo's magic?"
 ///
-/// Boo drifts to the middle, grows, and turns a colour. The child says which
-/// one by popping the matching bubble.
+/// Boo drifts to the middle inside an exact, solid colour aura. The child
+/// says which one by popping the matching bubble.
 ///
-/// This activity only exists because Boo is drawn in code rather than loaded
-/// from pictures. A folder of images could never show him as all fifty
-/// colours, and it is the moment the mascot stops being decoration and
-/// becomes the lesson itself.
+/// Boo's face and iridescent artwork are deliberately never recoloured. A
+/// whole-image tint corrupts white, black and the facial features, while the
+/// dedicated aura remains color-accurate for every taught colour.
 class BooChangesColour extends StatefulWidget {
   const BooChangesColour({
     super.key,
@@ -99,6 +98,7 @@ class _BooChangesColourState extends State<BooChangesColour>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -107,35 +107,45 @@ class _BooChangesColourState extends State<BooChangesColour>
           constraints.maxHeight,
         );
 
+        final bool compact = constraints.maxHeight < 430;
+        final int answerColumns = constraints.maxWidth < 430 ? 3 : 5;
+
         return Column(
           children: <Widget>[
             if (settings.words)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 child: Text(
-                  'What colour am I?',
+                  'What colour is my magic?',
                   style: AppTheme.booLine,
                   textAlign: TextAlign.center,
                 ),
               ),
-            const SizedBox(height: AppSpacing.sm),
+            SizedBox(height: compact ? AppSpacing.xs : AppSpacing.sm),
 
             // Boo, front and centre, wearing the colour in question.
             Expanded(
-              flex: 5,
+              flex: compact ? 4 : 5,
               child: Center(
                 child: AnimatedBuilder(
-                  animation: _transition,
+                  animation: reduceMotion
+                      ? const AlwaysStoppedAnimation<double>(1)
+                      : _transition,
                   builder: (BuildContext context, Widget? child) {
-                    final double t = Curves.easeInOut.transform(
-                      _transition.value,
-                    );
+                    final double t = reduceMotion
+                        ? 1
+                        : Curves.easeInOut.transform(_transition.value);
 
                     return Transform.scale(
                       scale: 0.86 + (0.14 * t),
                       child: Boo(
-                        color: _shownColor,
-                        size: shortest * 0.52,
+                        // The colour stays a flat, exact aura while Boo's
+                        // face and artwork remain consistent.
+                        tint: _shownColor,
+                        size: min(
+                          shortest * 0.50,
+                          constraints.maxHeight * 0.48,
+                        ),
                         mood: BooMood.zoom,
                         onTap: widget.onBooTapped,
                       ),
@@ -145,53 +155,67 @@ class _BooChangesColourState extends State<BooChangesColour>
               ),
             ),
 
-            Expanded(flex: 4, child: _answers(constraints)),
+            Expanded(
+              flex: compact ? 5 : 4,
+              child: _answers(constraints, answerColumns),
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _answers(BoxConstraints outer) {
+  Widget _answers(BoxConstraints outer, int maxColumns) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final List<ColorEntry> options = widget.round.options;
 
-        double diameter = AppSizing.bubbleDiameter(
-          constraints.maxWidth,
-          options.length,
-        );
-        diameter = min(diameter, constraints.maxHeight * 0.8);
-        diameter = max(diameter, 56);
+        final int columns = min(maxColumns, options.length);
+        final int rows = (options.length / columns).ceil();
+        final double cellWidth = constraints.maxWidth / columns;
+        final double cellHeight = constraints.maxHeight / rows;
+        final double diameter = min(
+          min(cellWidth - 10, cellHeight - 8),
+          112.0,
+        ).clamp(44.0, 112.0);
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: <Widget>[
-            for (final ColorEntry entry in options)
-              Flexible(
-                child: _Shiver(
-                  active: _wobbling == entry.name,
-                  child: Builder(
-                    builder: (BuildContext bubbleContext) {
-                      return SoapBubble(
-                        color: entry.color,
-                        diameter: diameter,
-                        glow:
-                            (entry.name == widget.round.target.name &&
-                                widget.missCount >= 2)
-                            ? 1
-                            : 0,
-                        semanticLabel: entry.name,
-                        onTap: () => _handleTap(
-                          entry,
-                          _screenFraction(bubbleContext, context),
-                        ),
-                      );
-                    },
+        return Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            runAlignment: WrapAlignment.center,
+            spacing: 0,
+            runSpacing: 2,
+            children: <Widget>[
+              for (final ColorEntry entry in options)
+                SizedBox(
+                  width: cellWidth,
+                  height: cellHeight,
+                  child: Center(
+                    child: _Shiver(
+                      active: _wobbling == entry.name,
+                      child: Builder(
+                        builder: (BuildContext bubbleContext) {
+                          return SoapBubble(
+                            color: entry.color,
+                            diameter: diameter,
+                            glow:
+                                (entry.name == widget.round.target.name &&
+                                    widget.missCount >= 2)
+                                ? 1
+                                : 0,
+                            semanticLabel: entry.name,
+                            onTap: () => _handleTap(
+                              entry,
+                              _screenFraction(bubbleContext, context),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -253,6 +277,7 @@ class _ShiverState extends State<_Shiver> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {
