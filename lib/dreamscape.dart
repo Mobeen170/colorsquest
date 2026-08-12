@@ -17,6 +17,7 @@ import 'colors/color_mixes.dart';
 import 'colors/color_picker_logic.dart';
 import 'colors/shade_ladder.dart';
 import 'settings/parent_panel.dart';
+import 'settings/settings.dart';
 import 'session/session_summary.dart';
 import 'world/bubble_field.dart';
 import 'world/paper_background.dart';
@@ -38,10 +39,13 @@ enum Activity {
 /// only hands control back to the app shell when the child deliberately uses
 /// the optional “Finish for now” path.
 class Dreamscape extends StatefulWidget {
-  const Dreamscape({super.key, required this.onFinish});
+  const Dreamscape({super.key, required this.onFinish, this.onHome});
 
   /// Called only after the child deliberately confirms “Finish for now”.
   final ValueChanged<SessionSummary> onFinish;
+
+  /// Child-friendly direct return to the start screen.
+  final VoidCallback? onHome;
 
   @override
   State<Dreamscape> createState() => _DreamscapeState();
@@ -330,12 +334,14 @@ class _DreamscapeState extends State<Dreamscape> {
       AudioService.instance.playCorrect();
     }
 
+    AudioService.instance.playCheer();
+
     await _say(_praiseFor(outcome.tapped));
 
     if (!mounted || generation != _activityGeneration) return;
 
     _advanceTimer?.cancel();
-    _advanceTimer = Timer(const Duration(milliseconds: 400), () {
+    _advanceTimer = Timer(Duration(milliseconds: bigMoment ? 1550 : 1200), () {
       if (mounted && generation == _activityGeneration) {
         _startActivity(_chooseNextActivity());
       }
@@ -414,7 +420,8 @@ class _DreamscapeState extends State<Dreamscape> {
     });
     AudioService.instance
       ..playMixingMerge()
-      ..playCelebration();
+      ..playCelebration()
+      ..playCheer();
 
     await _say('Look! They made ${result.name}!');
     if (!mounted || generation != _activityGeneration) return;
@@ -449,7 +456,9 @@ class _DreamscapeState extends State<Dreamscape> {
       _bigCelebration = false;
       _celebrationSerial++;
     });
-    AudioService.instance.playCorrect();
+    AudioService.instance
+      ..playCorrect()
+      ..playCheer();
     await _say('Lovely! ${base.name}, from light to dark!');
     if (!mounted || generation != _activityGeneration) return;
 
@@ -538,6 +547,10 @@ class _DreamscapeState extends State<Dreamscape> {
                   WonderTopBar(
                     place: _placeFor(_activity),
                     discoveryCount: _discoveries.length,
+                    soundMuted: SettingsScope.of(context).masterMuted,
+                    onHomeTap: _confirmHome,
+                    onSoundTap: _toggleMasterSound,
+                    onHearAgain: _hearAgain,
                     onCompassTap: _openCompass,
                   ),
                   const SizedBox(height: 4),
@@ -743,6 +756,116 @@ class _DreamscapeState extends State<Dreamscape> {
     };
   }
 
+  void _toggleMasterSound() {
+    if (_finishing) return;
+
+    final Settings settings = SettingsScope.of(context);
+    final bool wasMuted = settings.masterMuted;
+
+    if (!wasMuted) {
+      AudioService.instance.playButtonTap();
+    }
+
+    settings.toggleMasterMute();
+
+    if (wasMuted) {
+      AudioService.instance.playButtonTap();
+    }
+  }
+
+  void _hearAgain() {
+    if (_resolving || _feedbackBusy || _finishing) return;
+
+    AudioService.instance.playButtonTap();
+    _speakPrompt();
+  }
+
+  Future<void> _confirmHome() async {
+    if (_resolving || _feedbackBusy || _finishing) return;
+    if (widget.onHome == null) return;
+
+    AudioService.instance.playButtonTap();
+
+    _repeatPromptTimer?.cancel();
+    _idleChatterTimer?.cancel();
+
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: AppColors.darkInk.withValues(alpha: 0.42),
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              key: const Key('home-confirm-dialog'),
+              backgroundColor: AppColors.paperCream,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              icon: const Icon(
+                Icons.home_rounded,
+                color: AppColors.booBlue,
+                size: 44,
+              ),
+              title: const Text(
+                'Go back home?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              content: const Text(
+                'You can come play with Boo again anytime!',
+                textAlign: TextAlign.center,
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: <Widget>[
+                FilledButton.tonalIcon(
+                  key: const Key('keep-playing-home-button'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text(
+                    'KEEP PLAYING',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                FilledButton.icon(
+                  key: const Key('confirm-home-button'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  icon: const Icon(Icons.home_rounded),
+                  label: const Text(
+                    'HOME',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted) return;
+
+    if (!confirmed) {
+      _scheduleIdleChatter();
+      setState(() => _mood = BooMood.waiting);
+      return;
+    }
+
+    _activityGeneration++;
+
+    _idleChatterTimer?.cancel();
+    _repeatPromptTimer?.cancel();
+    _advanceTimer?.cancel();
+
+    await AudioService.instance.stopSpeaking();
+
+    if (!mounted) return;
+
+    widget.onHome?.call();
+  }
+
   void _openCompass() {
     if (_resolving || _feedbackBusy || _finishing) return;
     unawaited(_showCompass());
@@ -819,13 +942,19 @@ class _DreamscapeState extends State<Dreamscape> {
                   key: const Key('keep-playing-button'),
                   onPressed: () => Navigator.of(dialogContext).pop(false),
                   icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Keep playing'),
+                  label: const Text(
+                    'KEEP PLAYING',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
                 ),
                 FilledButton.icon(
                   key: const Key('confirm-finish-button'),
                   onPressed: () => Navigator.of(dialogContext).pop(true),
                   icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Finish for now'),
+                  label: const Text(
+                    "YES, I'M DONE",
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
                 ),
               ],
             );

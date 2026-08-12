@@ -9,8 +9,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Coloriboo audio pack', () {
-    test('contains all 13 original PCM sound effects', () async {
-      expect(AudioService.effectAssetPaths, hasLength(13));
+    test('contains all 14 Coloriboo PCM sound effects', () async {
+      expect(AudioService.effectAssetPaths, hasLength(14));
 
       for (final String path in AudioService.effectAssetPaths.values) {
         final ByteData data = await rootBundle.load(path);
@@ -23,7 +23,7 @@ void main() {
       }
     });
 
-    test('twilight music is a quiet 24 second stereo PCM loop', () async {
+    test('pop music is a quiet 24 second stereo PCM loop', () async {
       final ByteData data = await rootBundle.load(AudioService.musicAssetPath);
 
       expect(_ascii(data, 0, 4), 'RIFF');

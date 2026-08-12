@@ -8,6 +8,7 @@ import '../boo/boo.dart';
 import '../boo/boo_asset_catalog.dart';
 import '../world/bubble_field.dart';
 import '../world/paper_background.dart';
+import '../widgets/kid_controls.dart';
 
 /// The quiet, premium doorway into Boo's Twilight Prism Garden.
 ///
@@ -119,6 +120,16 @@ class _StartScreenState extends State<StartScreen>
                   ),
                 );
               },
+            ),
+          ),
+          // start-master-sound-wrap
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(10, 8, 0, 0),
+                child: MasterSoundButton(dark: false, showLabel: true),
+              ),
             ),
           ),
           if (widget.onSettings != null)

@@ -19,7 +19,7 @@ class AudioService {
 
   static const Duration _operationTimeout = Duration(seconds: 3);
   static const Duration _speechTimeout = Duration(seconds: 5);
-  static const double _musicVolume = 0.14;
+  static const double _musicVolume = 0.16;
   static const double _duckedVolume = _musicVolume * 0.22;
 
   @visibleForTesting
@@ -28,6 +28,7 @@ class AudioService {
     'pop': 'assets/audio/sfx/bubble_pop.wav',
     'soft': 'assets/audio/sfx/bubble_soft.wav',
     'correct': 'assets/audio/sfx/correct_chime.wav',
+    'cheer': 'assets/audio/sfx/happy_cheer.wav',
     'tryAgain': 'assets/audio/sfx/try_again.wav',
     'sparkle': 'assets/audio/sfx/sparkle.wav',
     'mixing': 'assets/audio/sfx/mixing_merge.wav',
@@ -41,13 +42,14 @@ class AudioService {
 
   @visibleForTesting
   static const String musicAssetPath =
-      'assets/audio/music/coloriboo_twilight_loop.wav';
+      'assets/audio/music/coloriboo_pop_loop.wav';
 
   static const Map<String, Duration> _effectCooldowns = <String, Duration>{
     'button': Duration(milliseconds: 90),
     'pop': Duration(milliseconds: 85),
     'soft': Duration(milliseconds: 180),
     'correct': Duration(milliseconds: 280),
+    'cheer': Duration(milliseconds: 900),
     'tryAgain': Duration(milliseconds: 480),
     'sparkle': Duration(milliseconds: 220),
     'mixing': Duration(milliseconds: 420),
@@ -208,12 +210,14 @@ class AudioService {
 
   void _onSettingsChanged() {
     unawaited(_updateMusic());
-    if (_settings?.voice == false) unawaited(stopSpeaking());
+    if (_settings?.voice == false || _settings?.masterMuted == true) {
+      unawaited(stopSpeaking());
+    }
   }
 
   Future<void> _updateMusic() async {
     if (!_engineReady || _musicSource == null) return;
-    final bool wanted = _worldEntered && (_settings?.music ?? false);
+    final bool wanted = _worldEntered && (_settings?.effectiveMusic ?? false);
 
     if (wanted && _musicHandle != null) {
       try {
@@ -234,7 +238,7 @@ class AudioService {
         final SoundHandle handle = await SoLoud.instance
             .play(_musicSource!, volume: 0, looping: true)
             .timeout(_operationTimeout);
-        if (_worldEntered && (_settings?.music ?? false)) {
+        if (_worldEntered && (_settings?.effectiveMusic ?? false)) {
           _musicHandle = handle;
           SoLoud.instance.setProtectVoice(handle, true);
           SoLoud.instance.fadeVolume(
@@ -267,7 +271,11 @@ class AudioService {
   /// Boo speaks while the loop ducks. A timeout, error, interruption, or newer
   /// speech request always restores music, so it cannot stay quietly stuck.
   Future<void> speak(String text) async {
-    if (!_voiceReady || _settings?.voice != true || text.trim().isEmpty) return;
+    if (!_voiceReady ||
+        _settings?.effectiveVoice != true ||
+        text.trim().isEmpty) {
+      return;
+    }
 
     final int request = ++_speechGeneration;
     _speechActive = true;
@@ -318,7 +326,7 @@ class AudioService {
   }
 
   bool _claimEffect(String name) {
-    if (!_engineReady || _settings?.soundEffects != true) return false;
+    if (!_engineReady || _settings?.effectiveSoundEffects != true) return false;
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastEffectAt[name];
     final Duration cooldown =
@@ -369,6 +377,9 @@ class AudioService {
 
   void playCorrect() => _playEffect('correct', volume: 0.50);
 
+  /// Short happy success flourish layered under a correct answer.
+  void playCheer() => _playEffect('cheer', volume: 0.36);
+
   void playActivityTransition() => _playEffect('transition', volume: 0.38);
 
   void playBooMagic() => _playEffect('booMagic', volume: 0.42);
@@ -385,7 +396,9 @@ class AudioService {
 
   /// Plays the note belonging to a colour from Coloriboo's pentatonic scale.
   void playColorNote(int semitone, {bool withThird = false}) {
-    if (!_engineReady || _tone == null || _settings?.soundEffects != true) {
+    if (!_engineReady ||
+        _tone == null ||
+        _settings?.effectiveSoundEffects != true) {
       return;
     }
     final DateTime now = DateTime.now();
@@ -405,7 +418,9 @@ class AudioService {
 
   void _playTone(int semitone, {double seconds = 0.4, double volume = 0.3}) {
     final AudioSource? tone = _tone;
-    if (!_engineReady || tone == null || _settings?.soundEffects != true) {
+    if (!_engineReady ||
+        tone == null ||
+        _settings?.effectiveSoundEffects != true) {
       return;
     }
     unawaited(_playToneSafely(tone, semitone, seconds, volume));
@@ -441,13 +456,13 @@ class AudioService {
   bool get worldAudioRequested => _worldEntered;
 
   @visibleForTesting
-  bool get musicWanted => _worldEntered && (_settings?.music ?? false);
+  bool get musicWanted => _worldEntered && (_settings?.effectiveMusic ?? false);
 
   @visibleForTesting
-  bool get soundEffectsWanted => _settings?.soundEffects ?? false;
+  bool get soundEffectsWanted => _settings?.effectiveSoundEffects ?? false;
 
   @visibleForTesting
-  bool get voiceWanted => _settings?.voice ?? false;
+  bool get voiceWanted => _settings?.effectiveVoice ?? false;
 
   /// Releases both engines. Safe after partial or failed initialization.
   void dispose() {

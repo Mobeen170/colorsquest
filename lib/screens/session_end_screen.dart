@@ -9,6 +9,7 @@ import '../colors/color_library.dart';
 import '../session/session_summary.dart';
 import '../world/bubble_field.dart';
 import '../world/paper_background.dart';
+import '../widgets/kid_controls.dart';
 
 /// A warm session memory, never a score screen.
 class SessionEndScreen extends StatefulWidget {
@@ -84,6 +85,16 @@ class _SessionEndScreenState extends State<SessionEndScreen> {
                 painter: _SessionGlowPainter(
                   colors: widget.summary.uniqueColorsExplored,
                 ),
+              ),
+            ),
+          ),
+          // end-master-sound-wrap
+          const SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(0, 8, 10, 0),
+                child: MasterSoundButton(dark: false, showLabel: true),
               ),
             ),
           ),
@@ -284,7 +295,7 @@ class _EndHeading extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Great exploring with Boo!',
+          'YOU DID AMAZING WITH BOO!',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.softInk,
@@ -475,7 +486,7 @@ class _EndActions extends StatelessWidget {
         const SizedBox(height: 10),
         _EndActionButton(
           key: const Key('back-to-start-button'),
-          label: 'BACK TO START',
+          label: 'HOME',
           semanticLabel: 'Back to the Coloriboo start screen',
           icon: Icons.home_rounded,
           primary: false,

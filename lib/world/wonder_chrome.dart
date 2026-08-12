@@ -6,6 +6,7 @@ import '../app_theme.dart';
 import '../boo/boo.dart';
 import '../boo/boo_asset_catalog.dart';
 import '../colors/color_library.dart';
+import '../widgets/kid_controls.dart';
 
 /// The child-facing name and symbol for a place in Boo's play compass.
 @immutable
@@ -32,102 +33,154 @@ class WonderTopBar extends StatelessWidget {
     required this.place,
     required this.discoveryCount,
     required this.onCompassTap,
+    this.soundMuted = false,
+    this.onHomeTap,
+    this.onSoundTap,
+    this.onHearAgain,
   });
 
   final PlayPlace place;
   final int discoveryCount;
+  final bool soundMuted;
+  final VoidCallback? onHomeTap;
+  final VoidCallback? onSoundTap;
+  final VoidCallback? onHearAgain;
   final VoidCallback onCompassTap;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final bool narrow = constraints.maxWidth < 360;
+        final bool narrow = constraints.maxWidth < 370;
+
         return Padding(
-          padding: EdgeInsets.fromLTRB(narrow ? 2 : 14, 8, narrow ? 12 : 58, 4),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: AppColors.white.withValues(alpha: 0.18),
-                  ),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: narrow ? 8 : 12,
-                    vertical: 7,
-                  ),
-                  child: Text(
-                    narrow ? 'BOO' : 'COLORIBOO',
-                    style: const TextStyle(
-                      color: AppColors.starlight,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.7,
+              Row(
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                  ),
-                ),
-              ),
-              SizedBox(width: narrow ? 4 : AppSpacing.sm),
-              if (!narrow)
-                Expanded(
-                  child: Text(
-                    place.shortTitle,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.starlight,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                )
-              else
-                const Spacer(),
-              Semantics(
-                label:
-                    'Open Boo’s play compass. $discoveryCount colour discoveries '
-                    'this time.',
-                button: true,
-                child: _PressableGlow(
-                  onTap: onCompassTap,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      minWidth: narrow ? 52 : AppSpacing.minTouchTarget,
-                      minHeight: 52,
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: narrow ? 8 : 12),
                     decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: AppColors.white.withValues(alpha: 0.24),
+                      color: AppColors.white.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Text(
+                      narrow ? 'BOO' : 'COLORIBOO',
+                      style: const TextStyle(
+                        color: AppColors.starlight,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      place.title,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.starlight,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.bubbleMint.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(15),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         const Icon(
-                          Icons.explore_rounded,
-                          color: AppColors.starlight,
-                          size: 24,
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.bubbleMint,
+                          size: 16,
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 3),
                         Text(
                           '$discoveryCount',
                           style: const TextStyle(
                             color: AppColors.starlight,
-                            fontSize: 17,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
+              if (onHomeTap != null &&
+                  onSoundTap != null &&
+                  onHearAgain != null) ...<Widget>[
+                const SizedBox(height: 6),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-home-button'),
+                        label: 'HOME',
+                        semanticLabel: 'Go home',
+                        icon: Icons.home_rounded,
+                        accent: AppColors.bubblePink,
+                        onTap: onHomeTap!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-sound-button'),
+                        label: soundMuted ? 'MUTED' : 'SOUND',
+                        semanticLabel: soundMuted
+                            ? 'Turn sound on'
+                            : 'Mute sound',
+                        icon: soundMuted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        accent: soundMuted
+                            ? AppColors.softInk
+                            : AppColors.sunnyPop,
+                        onTap: onSoundTap!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-hear-button'),
+                        label: 'HEAR',
+                        semanticLabel: 'Hear the question again',
+                        icon: Icons.record_voice_over_rounded,
+                        accent: AppColors.booBlue,
+                        onTap: onHearAgain!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-games-button'),
+                        label: 'GAMES',
+                        semanticLabel: 'Choose another game',
+                        icon: Icons.explore_rounded,
+                        accent: AppColors.bubblePurple,
+                        onTap: onCompassTap,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );
@@ -356,13 +409,35 @@ class WonderCelebration extends StatefulWidget {
 class _WonderCelebrationState extends State<WonderCelebration>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  late final String _praise;
+  late final int _seed;
+
+  static const List<String> _praises = <String>[
+    'YES!',
+    'YOU GOT IT!',
+    'AMAZING!',
+    'BRILLIANT!',
+    'WOOHOO!',
+    'COLOUR STAR!',
+    'POP-TASTIC!',
+    'GREAT JOB!',
+  ];
 
   @override
   void initState() {
     super.initState();
+
+    final Random random = Random();
+
+    _praise = widget.big
+        ? 'WOW! SUPER STAR!'
+        : _praises[random.nextInt(_praises.length)];
+
+    _seed = random.nextInt(1 << 30);
+
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: widget.big ? 900 : 620),
+      duration: Duration(milliseconds: widget.big ? 1700 : 1450),
     )..forward();
   }
 
@@ -375,84 +450,194 @@ class _WonderCelebrationState extends State<WonderCelebration>
   @override
   Widget build(BuildContext context) {
     final bool reduced = MediaQuery.disableAnimationsOf(context);
+
     return IgnorePointer(
-      child: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (BuildContext context, Widget? child) {
-            final double t = reduced ? 0.48 : _controller.value;
-            final double reveal = Curves.easeOutBack.transform(
-              reduced ? 1 : min(1, t * 1.35),
-            );
-            final double fade = reduced
-                ? 1
-                : t < 0.68
-                ? 1
-                : (1 - t) / 0.32;
-            return Opacity(
-              opacity: fade.clamp(0, 1),
-              child: Stack(
-                alignment: Alignment.center,
-                children: <Widget>[
-                  for (int i = 0; i < (widget.big ? 10 : 5); i++)
-                    Transform.translate(
-                      offset: Offset.fromDirection(
-                        (2 * pi * i / (widget.big ? 10 : 5)) - pi / 2,
-                        reveal * (widget.big ? 145 : 98),
-                      ),
-                      child: Transform.scale(
-                        scale: reveal,
-                        child: Icon(
-                          i.isEven
-                              ? Icons.auto_awesome_rounded
-                              : Icons.bubble_chart_rounded,
-                          size: widget.big ? 28 : 20,
-                          color: i.isEven
-                              ? widget.color
-                              : AppColors.bubblePurple,
-                        ),
-                      ),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (BuildContext context, Widget? child) {
+          final double t = reduced ? 0.75 : _controller.value;
+
+          final double reveal = reduced
+              ? 1
+              : Curves.easeOutBack.transform(min(1.0, t * 2.2));
+
+          return Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              CustomPaint(
+                painter: _CelebrationConfettiPainter(
+                  progress: t,
+                  seed: _seed,
+                  lessonColor: widget.color,
+                  big: widget.big,
+                  reduced: reduced,
+                ),
+              ),
+              Center(
+                child: Transform.scale(
+                  scale: reveal,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 335),
+                    margin: const EdgeInsets.symmetric(horizontal: 18),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: widget.big ? 30 : 24,
+                      vertical: widget.big ? 22 : 17,
                     ),
-                  Transform.scale(
-                    scale: reveal,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 26,
-                        vertical: 15,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(
-                          color: widget.color.withValues(alpha: 0.55),
-                          width: 3,
-                        ),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: widget.color.withValues(alpha: 0.36),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: <Color>[
+                          AppColors.white.withValues(alpha: 0.98),
+                          widget.color.withValues(alpha: 0.14),
+                          AppColors.white.withValues(alpha: 0.98),
                         ],
                       ),
-                      child: Text(
-                        widget.label.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.darkInk,
-                          fontSize: 25,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1,
-                        ),
+                      borderRadius: BorderRadius.circular(34),
+                      border: Border.all(
+                        color: widget.color.withValues(alpha: 0.70),
+                        width: widget.big ? 4 : 3,
                       ),
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: widget.color.withValues(alpha: 0.42),
+                          blurRadius: widget.big ? 46 : 34,
+                          spreadRadius: widget.big ? 9 : 5,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          _praise,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.moonInk,
+                            fontSize: widget.big ? 28 : 24,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            widget.label.toUpperCase(),
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: AppColors.darkInk,
+                              fontSize: widget.big ? 38 : 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.big
+                              ? 'THE SKY IS GLOWING!'
+                              : 'YOU FOUND THE COLOUR!',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.softInk,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
+  }
+}
+
+class _CelebrationConfettiPainter extends CustomPainter {
+  const _CelebrationConfettiPainter({
+    required this.progress,
+    required this.seed,
+    required this.lessonColor,
+    required this.big,
+    required this.reduced,
+  });
+
+  final double progress;
+  final int seed;
+  final Color lessonColor;
+  final bool big;
+  final bool reduced;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+
+    final Random random = Random(seed);
+    final Offset centre = size.center(Offset.zero);
+
+    final int count = big ? 48 : 30;
+
+    final List<Color> colors = <Color>[
+      lessonColor,
+      AppColors.booBlue,
+      AppColors.bubblePink,
+      AppColors.bubblePurple,
+      AppColors.bubbleMint,
+      AppColors.sunnyPop,
+      AppColors.white,
+    ];
+
+    final double p = reduced ? 0.72 : Curves.easeOut.transform(progress);
+
+    for (int i = 0; i < count; i++) {
+      final double angle = random.nextDouble() * pi * 2;
+
+      final double distance =
+          (big ? 130 : 90) + random.nextDouble() * (big ? 220 : 155);
+
+      final Offset position =
+          centre +
+          Offset(
+            cos(angle) * distance * p,
+            sin(angle) * distance * p + (progress * progress * 50),
+          );
+
+      final Color color = colors[random.nextInt(colors.length)];
+
+      final double particleSize = 5 + random.nextDouble() * (big ? 11 : 8);
+
+      final Paint paint = Paint()..color = color.withValues(alpha: 0.90);
+
+      canvas.save();
+      canvas.translate(position.dx, position.dy);
+      canvas.rotate(angle + progress * pi * 2);
+
+      if (i.isEven) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: particleSize * 0.55,
+              height: particleSize * 1.25,
+            ),
+            const Radius.circular(2),
+          ),
+          paint,
+        );
+      } else {
+        canvas.drawCircle(Offset.zero, particleSize * 0.42, paint);
+      }
+
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CelebrationConfettiPainter oldDelegate) {
+    return oldDelegate.progress != progress;
   }
 }
 
@@ -512,7 +697,7 @@ class PlayCompassSheet extends StatelessWidget {
                   SizedBox(width: 4),
                   Flexible(
                     child: Text(
-                      'Boo’s Play Compass',
+                      'CHOOSE A GAME!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: AppColors.starlight,
@@ -525,7 +710,7 @@ class PlayCompassSheet extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Choose a place, or let Boo keep the adventure flowing.',
+                'Tap a big card to play!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: AppColors.starlight.withValues(alpha: 0.70),
@@ -693,7 +878,7 @@ class PlayCompassSheet extends StatelessWidget {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              'Finish for now',
+                              'ALL DONE',
                               maxLines: 1,
                               style: TextStyle(
                                 color: AppColors.starlight,

@@ -140,6 +140,7 @@ class _ColorGameAppState extends State<ColorGameApp> {
         return Dreamscape(
           key: ValueKey<String>('dreamscape-$_sessionSerial'),
           onFinish: _finishSession,
+          onHome: _homeFromDreamscape,
         );
 
       case _AppStage.sessionEnd:
@@ -213,15 +214,22 @@ class _ColorGameAppState extends State<ColorGameApp> {
     });
   }
 
+  void _homeFromDreamscape() {
+    if (_stage != _AppStage.dreamscape) return;
+    unawaited(_leaveWorldFrom(_AppStage.dreamscape));
+  }
+
   void _backToStart() {
     if (_stage != _AppStage.sessionEnd) return;
     AudioService.instance.playButtonTap();
-    unawaited(_leaveWorld());
+    unawaited(_leaveWorldFrom(_AppStage.sessionEnd));
   }
 
-  Future<void> _leaveWorld() async {
+  Future<void> _leaveWorldFrom(_AppStage expectedStage) async {
     await AudioService.instance.returnToStart();
-    if (!mounted || _stage != _AppStage.sessionEnd) return;
+
+    if (!mounted || _stage != expectedStage) return;
+
     setState(() {
       _lastSummary = SessionSummary.empty;
       _stage = _AppStage.start;

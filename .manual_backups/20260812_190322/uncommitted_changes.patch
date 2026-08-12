@@ -1,0 +1,10 @@
+diff --git a/test/style_preview_test.dart b/test/style_preview_test.dart
+index fa74d6a..7f7e0a0 100644
+--- a/test/style_preview_test.dart
++++ b/test/style_preview_test.dart
+@@ -1,4 +1,4 @@
+-// Visual smoke checks for the production Boo treatment.
++  // Visual smoke checks for the production Boo treatment.
+ 
+ import 'package:colorsquest/boo/boo.dart';
+ import 'package:colorsquest/colors/color_library.dart';

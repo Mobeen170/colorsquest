@@ -1,30 +1,28 @@
 import 'package:flutter/widgets.dart';
 
-/// The handful of things a parent can turn on and off.
+/// Coloriboo's simple in-memory settings.
 ///
-/// These live in memory only. They reset when the app is launched again,
-/// which keeps the app free of any storage, any saved state and any need for
-/// an extra package.
+/// Parent choices remain individual, while [masterMuted] is the obvious
+/// child-facing quick mute that temporarily sits above them.
 class Settings extends ChangeNotifier {
   bool _music = true;
   bool _soundEffects = true;
   bool _voice = true;
   bool _words = true;
+  bool _masterMuted = false;
 
-  /// The gentle background loop.
   bool get music => _music;
-
-  /// Pops, chimes and snaps.
   bool get soundEffects => _soundEffects;
-
-  /// Whether Boo speaks out loud.
   bool get voice => _voice;
-
-  /// Whether the written colour word is shown.
-  ///
-  /// On for a child who is learning letters, off for one who is not reading
-  /// yet. The game never requires reading either way.
   bool get words => _words;
+
+  /// Quick child-facing mute. It does NOT destroy the parent's individual
+  /// Music / SFX / Voice choices.
+  bool get masterMuted => _masterMuted;
+
+  bool get effectiveMusic => _music && !_masterMuted;
+  bool get effectiveSoundEffects => _soundEffects && !_masterMuted;
+  bool get effectiveVoice => _voice && !_masterMuted;
 
   set music(bool value) {
     if (_music == value) return;
@@ -48,6 +46,16 @@ class Settings extends ChangeNotifier {
     if (_words == value) return;
     _words = value;
     notifyListeners();
+  }
+
+  set masterMuted(bool value) {
+    if (_masterMuted == value) return;
+    _masterMuted = value;
+    notifyListeners();
+  }
+
+  void toggleMasterMute() {
+    masterMuted = !_masterMuted;
   }
 }
 
