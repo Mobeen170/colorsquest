@@ -16,7 +16,6 @@ import 'colors/color_library.dart';
 import 'colors/color_mixes.dart';
 import 'colors/color_picker_logic.dart';
 import 'colors/shade_ladder.dart';
-import 'settings/parent_panel.dart';
 import 'session/session_summary.dart';
 import 'world/bubble_field.dart';
 import 'world/paper_background.dart';
@@ -570,11 +569,6 @@ class _DreamscapeState extends State<Dreamscape> {
               label: _celebration!.name,
               big: _bigCelebration,
             ),
-          const Positioned(
-            top: 0,
-            right: 0,
-            child: SafeArea(child: ParentDot()),
-          ),
         ],
       ),
     );

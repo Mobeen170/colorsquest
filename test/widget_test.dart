@@ -158,33 +158,30 @@ void main() {
   });
 
   group('the parent control', () {
-    testWidgets('ignores a tap, so a child cannot open it', (
+    testWidgets('does not show the grown-up dot during child gameplay', (
       WidgetTester tester,
     ) async {
       await pumpAppAt(tester, const Size(390, 844));
       await enterDreamscape(tester);
 
-      await tester.tap(find.byType(ParentDot));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(find.text('For grown-ups'), findsNothing);
+      expect(
+        find.byType(ParentDot),
+        findsNothing,
+        reason: 'Grown-up settings must not float over child gameplay.',
+      );
     });
 
-    testWidgets('opens on a long press and offers four switches', (
+    testWidgets('grown-up dot stays absent in compact landscape', (
       WidgetTester tester,
     ) async {
-      await pumpAppAt(tester, const Size(390, 844));
+      await pumpAppAt(tester, const Size(844, 390));
       await enterDreamscape(tester);
 
-      await tester.longPress(find.byType(ParentDot));
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(find.text('For grown-ups'), findsOneWidget);
-      expect(find.text('Music'), findsOneWidget);
-      expect(find.text('Sound effects'), findsOneWidget);
-      expect(find.text("Boo's voice"), findsOneWidget);
-      expect(find.text('Show written words'), findsOneWidget);
-      expect(find.byType(Switch), findsNWidgets(4));
+      expect(
+        find.byType(ParentDot),
+        findsNothing,
+        reason: 'No invisible grown-up hit target may overlap the kid nav.',
+      );
     });
 
     testWidgets('start-screen grown-up access also requires a long press', (
