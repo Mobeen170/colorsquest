@@ -47,3 +47,4 @@ app.*.map.json
 to_put_in_use/
 *.BACKUP.wav
 test/preview_*.png
+android/key.properties

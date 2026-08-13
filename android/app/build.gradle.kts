@@ -1,10 +1,19 @@
 import java.util.Properties
+import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 
 val releaseKeystoreProperties = Properties()
 val releaseKeystoreFile = rootProject.file("key.properties")
@@ -15,7 +24,7 @@ if (hasReleaseSigning) {
 }
 
 android {
-    namespace = "com.example.colorsquest"
+    namespace = "com.pixelcraftslab.coloriboo"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -26,7 +35,7 @@ android {
 
     defaultConfig {
         // Store identity is intentionally preserved from the existing app.
-        applicationId = "com.example.colorsquest"
+        applicationId = "com.pixelcraftslab.coloriboo"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
