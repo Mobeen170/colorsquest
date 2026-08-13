@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+.manual_backups/
+to_put_in_use/
+*.BACKUP.wav
+test/preview_*.png

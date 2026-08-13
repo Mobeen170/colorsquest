@@ -43,7 +43,7 @@ Future<void> _enterWorld(
 }
 
 Future<void> _openActivity(WidgetTester tester, String activityName) async {
-  final Finder games = find.byKey(const Key('kid-games-button'));
+  final Finder games = find.byKey(const Key('play-compass-button'));
 
   expect(games, findsOneWidget);
 
