@@ -16,6 +16,7 @@ import 'colors/color_library.dart';
 import 'colors/color_mixes.dart';
 import 'colors/color_picker_logic.dart';
 import 'colors/shade_ladder.dart';
+import 'settings/settings.dart';
 import 'session/session_summary.dart';
 import 'world/bubble_field.dart';
 import 'world/paper_background.dart';
@@ -68,7 +69,7 @@ class _DreamscapeState extends State<Dreamscape> {
   int _successfulInteractions = 0;
   int _shadesDiscovered = 0;
   bool _finishing = false;
-  final bool _leaving = false;
+  bool _leaving = false;
 
   Activity _activity = Activity.popTheColour;
 
@@ -569,6 +570,11 @@ class _DreamscapeState extends State<Dreamscape> {
               label: _celebration!.name,
               big: _bigCelebration,
             ),
+          const Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(child: SizedBox.shrink()),
+          ),
         ],
       ),
     );
@@ -603,6 +609,10 @@ class _DreamscapeState extends State<Dreamscape> {
                   WonderTopBar(
                     place: _placeFor(_activity),
                     discoveryCount: _discoveries.length,
+                    soundMuted: SettingsScope.of(context).masterMuted,
+                    onHomeTap: _confirmHome,
+                    onSoundTap: _toggleMasterSound,
+                    onHearAgain: _hearAgain,
                     onCompassTap: _openCompass,
                   ),
                   SizedBox(height: compactLandscape ? 0 : 4),
@@ -810,6 +820,116 @@ class _DreamscapeState extends State<Dreamscape> {
       Activity.oddOneOut ||
       Activity.booChangesColour => null,
     };
+  }
+
+  void _toggleMasterSound() {
+    if (_finishing) return;
+
+    final Settings settings = SettingsScope.of(context);
+    final bool wasMuted = settings.masterMuted;
+
+    if (!wasMuted) {
+      AudioService.instance.playButtonTap();
+    }
+
+    settings.toggleMasterMute();
+
+    if (wasMuted) {
+      AudioService.instance.playButtonTap();
+    }
+  }
+
+  void _hearAgain() {
+    if (_resolving || _feedbackBusy || _finishing || _leaving) return;
+
+    AudioService.instance.playButtonTap();
+    _speakPrompt();
+  }
+
+  Future<void> _confirmHome() async {
+    if (_resolving || _feedbackBusy || _finishing || _leaving) return;
+    if (widget.onHome == null) return;
+
+    AudioService.instance.playButtonTap();
+
+    _repeatPromptTimer?.cancel();
+    _idleChatterTimer?.cancel();
+    _promptGeneration++;
+    unawaited(AudioService.instance.stopSpeaking());
+
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: AppColors.darkInk.withValues(alpha: 0.42),
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              key: const Key('home-confirm-dialog'),
+              backgroundColor: AppColors.paperCream,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              icon: const Icon(
+                Icons.home_rounded,
+                color: AppColors.booBlue,
+                size: 44,
+              ),
+              title: const Text(
+                'Go back home?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              content: const Text(
+                'You can come play with Boo again anytime!',
+                textAlign: TextAlign.center,
+              ),
+              actionsAlignment: MainAxisAlignment.center,
+              actions: <Widget>[
+                FilledButton.tonalIcon(
+                  key: const Key('keep-playing-home-button'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(false);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: const Text(
+                    'KEEP PLAYING',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                FilledButton.icon(
+                  key: const Key('confirm-home-button'),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  icon: const Icon(Icons.home_rounded),
+                  label: const Text(
+                    'HOME',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!mounted) return;
+
+    if (!confirmed) {
+      _scheduleIdleChatter();
+      setState(() => _mood = BooMood.waiting);
+      return;
+    }
+
+    _leaving = true;
+    _activityGeneration++;
+
+    _idleChatterTimer?.cancel();
+    _repeatPromptTimer?.cancel();
+    _advanceTimer?.cancel();
+
+    unawaited(AudioService.instance.stopSpeaking());
+    widget.onHome?.call();
   }
 
   void _openCompass() {

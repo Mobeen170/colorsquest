@@ -92,7 +92,7 @@ Future<void> openActivity(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
   await enterDreamscape(tester);
-  await tester.tap(find.byKey(const Key('play-compass-button')));
+  await tester.tap(find.byKey(const Key('kid-games-button')));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
   final Finder choice = find.descendant(
@@ -237,7 +237,7 @@ void main() {
       await pumpAppAt(tester, const Size(390, 844));
       await enterDreamscape(tester);
 
-      await tester.tap(find.byKey(const Key('play-compass-button')));
+      await tester.tap(find.byKey(const Key('kid-games-button')));
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('CHOOSE A GAME!'), findsOneWidget);

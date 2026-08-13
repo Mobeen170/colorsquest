@@ -6,6 +6,7 @@ import '../app_theme.dart';
 import '../boo/boo.dart';
 import '../boo/boo_asset_catalog.dart';
 import '../colors/color_library.dart';
+import '../widgets/kid_controls.dart';
 
 /// The child-facing name and symbol for a place in Boo's play compass.
 @immutable
@@ -32,104 +33,176 @@ class WonderTopBar extends StatelessWidget {
     required this.place,
     required this.discoveryCount,
     required this.onCompassTap,
+    this.soundMuted = false,
+    this.onHomeTap,
+    this.onSoundTap,
+    this.onHearAgain,
   });
 
   final PlayPlace place;
   final int discoveryCount;
+  final bool soundMuted;
+  final VoidCallback? onHomeTap;
+  final VoidCallback? onSoundTap;
+  final VoidCallback? onHearAgain;
   final VoidCallback onCompassTap;
 
   @override
   Widget build(BuildContext context) {
+    final Size screen = MediaQuery.sizeOf(context);
+
+    final bool compactLandscape =
+        screen.width > screen.height && screen.height < 520;
+
+    final bool hasKidControls =
+        onHomeTap != null && onSoundTap != null && onHearAgain != null;
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final bool narrow = constraints.maxWidth < 360;
+        final bool narrow = constraints.maxWidth < 370;
 
         return Padding(
-          padding: EdgeInsets.fromLTRB(narrow ? 4 : 14, 6, 88, 3),
-          child: Row(
+          padding: EdgeInsets.fromLTRB(
+            4,
+            compactLandscape ? 1 : 5,
+            4,
+            compactLandscape ? 1 : 5,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: AppColors.white.withValues(alpha: 0.18),
-                  ),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: narrow ? 8 : 12,
-                    vertical: narrow ? 5 : 7,
-                  ),
-                  child: Text(
-                    narrow ? 'BOO' : 'COLORIBOO',
-                    style: const TextStyle(
-                      color: AppColors.starlight,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: narrow ? 5 : AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  place.shortTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.starlight,
-                    fontSize: narrow ? 13 : 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              SizedBox(width: narrow ? 4 : AppSpacing.sm),
-              Semantics(
-                label:
-                    'Open Boo’s play compass. $discoveryCount colour discoveries this time.',
-                button: true,
-                child: _PressableGlow(
-                  hitKey: const Key('play-compass-button'),
-                  onTap: onCompassTap,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 54,
-                      minHeight: 50,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.white.withValues(alpha: 0.25),
+              // On short landscape phones the child controls are more
+              // important than decorative branding. Removing this row gives
+              // the learning stage ~35 extra vertical pixels.
+              if (!compactLandscape || !hasKidControls) ...<Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: AppColors.white.withValues(alpha: 0.16),
+                        ),
+                      ),
+                      child: Text(
+                        narrow ? 'BOO' : 'COLORIBOO',
+                        style: const TextStyle(
+                          color: AppColors.starlight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        const Icon(
-                          Icons.explore_rounded,
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        place.title,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           color: AppColors.starlight,
-                          size: 22,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '$discoveryCount',
-                          style: const TextStyle(
-                            color: AppColors.starlight,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 7),
+                    Semantics(
+                      label: '$discoveryCount colors discovered',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bubbleMint.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.auto_awesome_rounded,
+                              color: AppColors.bubbleMint,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$discoveryCount',
+                              style: const TextStyle(
+                                color: AppColors.starlight,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 6),
+              ],
+
+              if (hasKidControls)
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-home-button'),
+                        label: 'HOME',
+                        semanticLabel: 'Go home',
+                        icon: Icons.home_rounded,
+                        accent: AppColors.bubblePink,
+                        onTap: onHomeTap!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-sound-button'),
+                        label: soundMuted ? 'MUTED' : 'SOUND',
+                        semanticLabel: soundMuted
+                            ? 'Turn sound on'
+                            : 'Mute sound',
+                        icon: soundMuted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        accent: soundMuted
+                            ? AppColors.softInk
+                            : AppColors.sunnyPop,
+                        onTap: onSoundTap!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-hear-button'),
+                        label: 'HEAR',
+                        semanticLabel: 'Hear the question again',
+                        icon: Icons.record_voice_over_rounded,
+                        accent: AppColors.booBlue,
+                        onTap: onHearAgain!,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: KidNavButton(
+                        key: const Key('kid-games-button'),
+                        label: 'GAMES',
+                        semanticLabel: 'Choose another game',
+                        icon: Icons.explore_rounded,
+                        accent: AppColors.bubblePurple,
+                        onTap: onCompassTap,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         );
@@ -872,9 +945,8 @@ class PlayCompassSheet extends StatelessWidget {
 }
 
 class _PressableGlow extends StatefulWidget {
-  const _PressableGlow({this.hitKey, required this.onTap, required this.child});
+  const _PressableGlow({required this.onTap, required this.child});
 
-  final Key? hitKey;
   final VoidCallback onTap;
   final Widget child;
 
@@ -889,7 +961,6 @@ class _PressableGlowState extends State<_PressableGlow> {
   Widget build(BuildContext context) {
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     return GestureDetector(
-      key: widget.hitKey,
       behavior: HitTestBehavior.opaque,
       onTapDown: (_) => setState(() => _pressed = true),
       onTapCancel: () => setState(() => _pressed = false),

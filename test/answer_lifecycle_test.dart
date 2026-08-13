@@ -46,7 +46,7 @@ Future<void> _enterWorld(WidgetTester tester) async {
 }
 
 Future<void> _finish(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('play-compass-button')));
+  await tester.tap(find.byKey(const Key('kid-games-button')));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 420));
   expect(find.byType(PlayCompassSheet), findsOneWidget);

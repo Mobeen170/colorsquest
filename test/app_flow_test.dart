@@ -68,7 +68,7 @@ Future<void> _enterDreamscape(WidgetTester tester) async {
 }
 
 Future<void> _openFinishDialog(WidgetTester tester) async {
-  final Finder games = find.byKey(const Key('play-compass-button'));
+  final Finder games = find.byKey(const Key('kid-games-button'));
   final Finder compass = find.byType(PlayCompassSheet);
 
   // A correct answer briefly locks navigation while Boo celebrates. Retry the
