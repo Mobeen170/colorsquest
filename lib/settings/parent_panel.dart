@@ -101,7 +101,7 @@ class _ParentPanel extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            'These reset when the app is closed.',
+                            'These stay for this app visit only.',
                             style: AppTheme.microLabel,
                             textAlign: TextAlign.center,
                           ),

@@ -1,5 +1,5 @@
 name: colorsquest
-description: "A new Flutter project."
+description: "Coloriboo — a private, playful color-learning app for young children."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -73,16 +73,30 @@ flutter:
 
   assets:
     # Boo's artwork.
-    - assets/images/
+    - assets/images/boo.png
     - assets/mascot/boo/core/
     - assets/mascot/boo/colors/
     - assets/mascot/boo/states/
     - assets/mascot/boo/special/
 
-    # Audio is optional. These folders may be empty: the app checks for each
-    # file at startup and simply stays quiet when one is missing.
-    - assets/audio/sfx/
-    - assets/audio/music/
+    # Audio is optional at runtime: the app checks each file at startup and
+    # simply stays quiet if an installed asset cannot be loaded. Declare only
+    # production media so README/.gitkeep files never enter store bundles.
+    - assets/audio/sfx/activity_transition.wav
+    - assets/audio/sfx/big_celebration.wav
+    - assets/audio/sfx/boo_magic.wav
+    - assets/audio/sfx/bubble_pop.wav
+    - assets/audio/sfx/bubble_soft.wav
+    - assets/audio/sfx/button_tap.wav
+    - assets/audio/sfx/celebration.wav
+    - assets/audio/sfx/correct_chime.wav
+    - assets/audio/sfx/finish_session.wav
+    - assets/audio/sfx/happy_cheer.wav
+    - assets/audio/sfx/loading_twinkle.wav
+    - assets/audio/sfx/mixing_merge.wav
+    - assets/audio/sfx/sparkle.wav
+    - assets/audio/sfx/try_again.wav
+    - assets/audio/music/coloriboo_pop_loop.wav
 
   # Note: assets/icon/ is deliberately not bundled. It is only the source
   # image used to generate the launcher icons.

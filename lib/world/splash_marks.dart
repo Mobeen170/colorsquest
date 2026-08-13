@@ -129,6 +129,7 @@ class SplashMarksLayer extends StatefulWidget {
 class _SplashMarksLayerState extends State<SplashMarksLayer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _bloomController;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -140,8 +141,19 @@ class _SplashMarksLayerState extends State<SplashMarksLayer>
       vsync: this,
       duration: SplashMarksPainter._bloom + const Duration(milliseconds: 100),
     );
+  }
 
-    if (widget.marks.isNotEmpty) _bloomController.forward(from: 0);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _bloomController
+        ..stop()
+        ..value = 1;
+    } else if (widget.marks.isNotEmpty && _bloomController.value < 1) {
+      _bloomController.forward();
+    }
   }
 
   @override
@@ -150,7 +162,11 @@ class _SplashMarksLayerState extends State<SplashMarksLayer>
 
     if (widget.marks.length != oldWidget.marks.length ||
         widget.marks.lastOrNull?.seed != oldWidget.marks.lastOrNull?.seed) {
-      _bloomController.forward(from: 0);
+      if (_reduceMotion) {
+        _bloomController.value = 1;
+      } else {
+        _bloomController.forward(from: 0);
+      }
     }
   }
 
@@ -162,7 +178,7 @@ class _SplashMarksLayerState extends State<SplashMarksLayer>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) {
+    if (_reduceMotion) {
       final DateTime settledAt = widget.marks.isEmpty
           ? DateTime.now()
           : widget.marks.last.bornAt.add(SplashMarksPainter._bloom);

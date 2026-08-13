@@ -37,6 +37,7 @@ Future<void> _pumpShell(
   required Size size,
   required Widget child,
   bool reduceMotion = false,
+  TextScaler textScaler = TextScaler.noScaling,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -49,7 +50,11 @@ Future<void> _pumpShell(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         home: MediaQuery(
-          data: MediaQueryData(size: size, disableAnimations: reduceMotion),
+          data: MediaQueryData(
+            size: size,
+            disableAnimations: reduceMotion,
+            textScaler: textScaler,
+          ),
           child: child,
         ),
       ),
@@ -200,6 +205,45 @@ void main() {
       expect(playAgainCount, 1);
       expect(backCount, 1);
       expect(booTapCount, 1);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('text scaling app shell', () {
+    testWidgets('StartScreen supports 2x text on a small phone', (
+      WidgetTester tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        size: const Size(320, 568),
+        textScaler: const TextScaler.linear(2),
+        child: StartScreen(onPlay: () {}),
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.byKey(const Key('start-screen')), findsOneWidget);
+      expect(find.byKey(const Key('play-button')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('SessionEndScreen supports 2x text on a small phone', (
+      WidgetTester tester,
+    ) async {
+      await _pumpShell(
+        tester,
+        size: const Size(320, 568),
+        textScaler: const TextScaler.linear(2),
+        child: SessionEndScreen(
+          summary: _sampleSummary,
+          onPlayAgain: () {},
+          onBackToStart: () {},
+        ),
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      expect(find.byKey(const Key('session-end-screen')), findsOneWidget);
+      expect(find.byKey(const Key('play-again-button')), findsOneWidget);
+      expect(find.byKey(const Key('back-to-start-button')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

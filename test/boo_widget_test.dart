@@ -38,9 +38,6 @@ void main() {
     final Image image = tester.widget<Image>(
       find.descendant(of: frame, matching: find.byType(Image)).first,
     );
-    final AnimatedSwitcher switcher = tester.widget<AnimatedSwitcher>(
-      find.descendant(of: boo, matching: find.byType(AnimatedSwitcher)),
-    );
 
     expect(tester.getSize(boo), const Size.square(180));
     expect(tester.getSize(frame), const Size.square(180));
@@ -50,8 +47,10 @@ void main() {
     expect(image.gaplessPlayback, isTrue);
     expect(image.image, isA<ResizeImage>());
     expect(image.color, isNull);
-    expect(switcher.duration, const Duration(milliseconds: 240));
-    expect(switcher.reverseDuration, const Duration(milliseconds: 220));
+    expect(
+      find.descendant(of: boo, matching: find.byType(AnimatedSwitcher)),
+      findsNothing,
+    );
 
     for (final Transform transform in tester.widgetList<Transform>(
       find.descendant(of: boo, matching: find.byType(Transform)),
@@ -61,7 +60,7 @@ void main() {
     }
   });
 
-  testWidgets('cross-fades artwork without changing Boo layout size', (
+  testWidgets('swaps artwork without changing Boo layout size', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(_host(state: BooVisualState.idle, size: 156));
@@ -85,13 +84,6 @@ void main() {
       expect(image.gaplessPlayback, isTrue);
     }
 
-    await tester.pump(const Duration(milliseconds: 260));
-    expect(
-      find.byKey(
-        ValueKey<String>('boo-artwork-${BooAssetCatalog.canonical.path}'),
-      ),
-      findsNothing,
-    );
     expect(tester.getSize(find.byType(Boo)), const Size.square(156));
   });
 

@@ -35,7 +35,8 @@ class ColorGameApp extends StatefulWidget {
   State<ColorGameApp> createState() => _ColorGameAppState();
 }
 
-class _ColorGameAppState extends State<ColorGameApp> {
+class _ColorGameAppState extends State<ColorGameApp>
+    with WidgetsBindingObserver {
   final Settings _settings = Settings();
   _AppStage _stage = _AppStage.start;
   SessionSummary _lastSummary = SessionSummary.empty;
@@ -45,6 +46,15 @@ class _ColorGameAppState extends State<ColorGameApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final AppLifecycleState? lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.detached) {
+      unawaited(
+        AudioService.instance.setAppActive(
+          lifecycle == AppLifecycleState.resumed,
+        ),
+      );
+    }
 
     // Prepare quietly so PLAY can have instant feedback. Music remains off
     // until the child explicitly enters the garden.
@@ -84,9 +94,17 @@ class _ColorGameAppState extends State<ColorGameApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     AudioService.instance.dispose();
     _settings.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    unawaited(
+      AudioService.instance.setAppActive(state == AppLifecycleState.resumed),
+    );
   }
 
   @override

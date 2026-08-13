@@ -238,6 +238,7 @@ class _SoapBubbleState extends State<SoapBubble>
   late final AnimationController _controller;
   late final double _phaseOffset;
   bool _pressed = false;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -249,7 +250,20 @@ class _SoapBubbleState extends State<SoapBubble>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 4200),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -262,8 +276,6 @@ class _SoapBubbleState extends State<SoapBubble>
   Widget build(BuildContext context) {
     // Children need a bigger target than the usual Material minimum.
     final double tapSize = max(widget.diameter, AppSpacing.minTouchTarget);
-    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-
     final Widget painted = SizedBox(
       width: tapSize,
       height: tapSize,
@@ -276,13 +288,13 @@ class _SoapBubbleState extends State<SoapBubble>
                 size: Size.square(widget.diameter),
                 painter: BubblePainter(
                   color: widget.color,
-                  phase: reduceMotion
+                  phase: _reduceMotion
                       ? 0
                       : _phaseOffset + (_controller.value * 2 * pi),
                   squash: widget.squash,
                   opacity: widget.opacity,
                   glow: widget.glow,
-                  showSparkle: !reduceMotion,
+                  showSparkle: !_reduceMotion,
                 ),
               );
             },
@@ -308,7 +320,7 @@ class _SoapBubbleState extends State<SoapBubble>
         behavior: HitTestBehavior.opaque,
         child: AnimatedScale(
           scale: _pressed ? 0.91 : 1,
-          duration: reduceMotion
+          duration: _reduceMotion
               ? Duration.zero
               : const Duration(milliseconds: 105),
           curve: Curves.easeOut,

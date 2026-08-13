@@ -48,6 +48,7 @@ class OddOneOut extends StatefulWidget {
 class _OddOneOutState extends State<OddOneOut>
     with SingleTickerProviderStateMixin {
   late final AnimationController _drift;
+  bool _reduceMotion = false;
 
   /// Which slot holds the odd bubble this time.
   late int _oddSlot;
@@ -64,8 +65,21 @@ class _OddOneOutState extends State<OddOneOut>
     _drift = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 12),
-    )..repeat();
+    );
     _oddSlot = Random().nextInt(widget.total);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _drift
+        ..stop()
+        ..value = 0;
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
   }
 
   @override
@@ -88,7 +102,7 @@ class _OddOneOutState extends State<OddOneOut>
     final bool correct = slot == _oddSlot;
     AudioService.instance.playSoftBubble();
 
-    if (!correct) {
+    if (!correct && !MediaQuery.disableAnimationsOf(context)) {
       setState(() => _wobbling = '$slot');
       _wobbleTimer?.cancel();
       _wobbleTimer = Timer(const Duration(milliseconds: 420), () {
@@ -105,8 +119,6 @@ class _OddOneOutState extends State<OddOneOut>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
-    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints outer) {
         return Column(
@@ -122,7 +134,7 @@ class _OddOneOutState extends State<OddOneOut>
               onTap: widget.onBooTapped,
             ),
             const SizedBox(height: AppSpacing.md),
-            Expanded(child: _grid(reduceMotion)),
+            Expanded(child: _grid(_reduceMotion)),
           ],
         );
       },
@@ -256,6 +268,7 @@ class _WobbleWrapper extends StatefulWidget {
 class _WobbleWrapperState extends State<_WobbleWrapper>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -264,13 +277,27 @@ class _WobbleWrapperState extends State<_WobbleWrapper>
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    if (widget.active) _controller.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else if (widget.active && _controller.value == 0) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
   void didUpdateWidget(_WobbleWrapper oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active) _controller.forward(from: 0);
+    if (widget.active && !oldWidget.active && !_reduceMotion) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
@@ -281,7 +308,7 @@ class _WobbleWrapperState extends State<_WobbleWrapper>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    if (_reduceMotion) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

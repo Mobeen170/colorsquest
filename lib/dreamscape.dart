@@ -70,6 +70,7 @@ class _DreamscapeState extends State<Dreamscape> {
   int _successfulInteractions = 0;
   int _shadesDiscovered = 0;
   bool _finishing = false;
+  bool _leaving = false;
 
   Activity _activity = Activity.popTheColour;
 
@@ -91,6 +92,10 @@ class _DreamscapeState extends State<Dreamscape> {
   /// Invalidates speech/feedback that belongs to an activity already left.
   int _activityGeneration = 0;
 
+  /// Invalidates an older prompt flow when Hear Again, feedback, or a modal
+  /// takes ownership of Boo's voice within the same activity.
+  int _promptGeneration = 0;
+
   ColorEntry? _celebration;
   bool _bigCelebration = false;
   int _celebrationSerial = 0;
@@ -105,10 +110,11 @@ class _DreamscapeState extends State<Dreamscape> {
   /// something that no longer exists.
   Timer? _advanceTimer;
 
+  /// Releases touch input independently from optional device speech.
+  Timer? _feedbackUnlockTimer;
+
   Future<void> _say(String text) async {
-    await AudioService.instance
-        .speak(text)
-        .timeout(const Duration(seconds: 8), onTimeout: () {});
+    await AudioService.instance.speak(text);
   }
 
   @override
@@ -129,9 +135,11 @@ class _DreamscapeState extends State<Dreamscape> {
 
   @override
   void dispose() {
+    _promptGeneration++;
     _idleChatterTimer?.cancel();
     _repeatPromptTimer?.cancel();
     _advanceTimer?.cancel();
+    _feedbackUnlockTimer?.cancel();
     super.dispose();
   }
 
@@ -148,7 +156,8 @@ class _DreamscapeState extends State<Dreamscape> {
   void _startActivity(Activity activity, {bool speakGreeting = false}) {
     _repeatPromptTimer?.cancel();
     _advanceTimer?.cancel();
-    AudioService.instance.stopSpeaking();
+    _feedbackUnlockTimer?.cancel();
+    unawaited(AudioService.instance.stopSpeaking());
     _activityGeneration++;
     AudioService.instance.playActivityTransition();
     if (activity == Activity.booChangesColour) {
@@ -207,16 +216,26 @@ class _DreamscapeState extends State<Dreamscape> {
   }
 
   Future<void> _speakPrompt({bool greeting = false}) async {
-    final int generation = _activityGeneration;
+    final int activityGeneration = _activityGeneration;
+    final int promptGeneration = ++_promptGeneration;
     if (!mounted) return;
     setState(() => _mood = BooMood.speaking);
 
     if (greeting) {
       await _say('Hello! I am Boo. Let us find colours!');
+      if (!mounted ||
+          activityGeneration != _activityGeneration ||
+          promptGeneration != _promptGeneration) {
+        return;
+      }
     }
     await _say(_promptText());
 
-    if (!mounted || generation != _activityGeneration) return;
+    if (!mounted ||
+        activityGeneration != _activityGeneration ||
+        promptGeneration != _promptGeneration) {
+      return;
+    }
     setState(() => _mood = BooMood.waiting);
 
     // If the child hesitates, Boo quietly offers the word again rather than
@@ -224,7 +243,8 @@ class _DreamscapeState extends State<Dreamscape> {
     _repeatPromptTimer?.cancel();
     _repeatPromptTimer = Timer(const Duration(seconds: 9), () {
       if (mounted &&
-          generation == _activityGeneration &&
+          activityGeneration == _activityGeneration &&
+          promptGeneration == _promptGeneration &&
           !_resolving &&
           !_feedbackBusy) {
         _speakPrompt();
@@ -235,7 +255,16 @@ class _DreamscapeState extends State<Dreamscape> {
   void _scheduleIdleChatter() {
     _idleChatterTimer?.cancel();
     _idleChatterTimer = Timer(Duration(seconds: 45 + _random.nextInt(40)), () {
-      if (!mounted || _resolving) return;
+      if (!mounted) return;
+      if (_resolving ||
+          _feedbackBusy ||
+          _finishing ||
+          _mood == BooMood.speaking) {
+        // A prompt, retry, or transition owns Boo's voice right now. Keep the
+        // optional chatter alive without interrupting the learning feedback.
+        _scheduleIdleChatter();
+        return;
+      }
 
       const List<String> lines = <String>[
         'I love bubbles!',
@@ -252,7 +281,7 @@ class _DreamscapeState extends State<Dreamscape> {
   /// Tapping Boo makes him talk. A child who is stuck can always hear the
   /// word again just by touching him.
   void _onBooTapped() {
-    if (_resolving || _feedbackBusy) return;
+    if (_resolving || _feedbackBusy || _finishing || _leaving) return;
     _speakPrompt();
   }
 
@@ -277,19 +306,20 @@ class _DreamscapeState extends State<Dreamscape> {
     });
   }
 
-  Future<void> _onAnswer(AnswerOutcome outcome) async {
+  void _onAnswer(AnswerOutcome outcome) {
     if (_resolving || _feedbackBusy) return;
 
+    _promptGeneration++;
     _rememberExplored(outcome.tapped);
 
     if (outcome.correct) {
-      await _handleCorrect(outcome);
+      _handleCorrect(outcome);
     } else {
-      await _handleMiss(outcome);
+      _handleMiss(outcome);
     }
   }
 
-  Future<void> _handleCorrect(AnswerOutcome outcome) async {
+  void _handleCorrect(AnswerOutcome outcome) {
     final int generation = _activityGeneration;
     setState(() => _resolving = true);
     _repeatPromptTimer?.cancel();
@@ -331,14 +361,13 @@ class _DreamscapeState extends State<Dreamscape> {
       _correctSinceCelebration = 0;
       AudioService.instance.playBigCelebration();
     } else {
-      AudioService.instance.playCorrect();
+      AudioService.instance
+        ..playCorrect()
+        ..playCheer();
     }
 
-    AudioService.instance.playCheer();
-
-    await _say(_praiseFor(outcome.tapped));
-
-    if (!mounted || generation != _activityGeneration) return;
+    // Visual feedback and endless progression never wait for optional TTS.
+    unawaited(_say(_praiseFor(outcome.tapped)));
 
     _advanceTimer?.cancel();
     _advanceTimer = Timer(Duration(milliseconds: bigMoment ? 1550 : 1200), () {
@@ -358,45 +387,81 @@ class _DreamscapeState extends State<Dreamscape> {
     return '${praise[_random.nextInt(praise.length)]} ${entry.name}!';
   }
 
-  Future<void> _handleMiss(AnswerOutcome outcome) async {
+  void _handleMiss(AnswerOutcome outcome) {
     final int generation = _activityGeneration;
+    final int promptGeneration = _promptGeneration;
+    _repeatPromptTimer?.cancel();
     setState(() => _feedbackBusy = true);
     _difficulty.recordMiss();
 
     setState(() {
       _missCount++;
-      _mood = BooMood.gentle;
+      if (_missCount >= 2) {
+        _booLean = _missCount.isEven ? -0.55 : 0.55;
+        _mood = BooMood.pointing;
+      } else {
+        _booLean = 0;
+        _mood = BooMood.gentle;
+      }
     });
 
     AudioService.instance.playTryAgain();
 
-    // Naming whatever the child touched turns every single tap into a lesson,
-    // even the ones that were not the answer.
-    await _say('That is ${outcome.tapped.name}.');
-    if (!mounted || generation != _activityGeneration) return;
-
-    if (_missCount == 1) {
-      await _say(_promptText());
-    } else if (_missCount == 2) {
-      // Boo leans towards the answer and it starts to glow.
-      setState(() {
-        _booLean = _missCount.isEven ? -0.55 : 0.55;
-        _mood = BooMood.pointing;
-      });
-      await _say('Try this one!');
-    } else {
-      await _say('Here it is!');
-    }
-
-    if (!mounted || generation != _activityGeneration) return;
-    setState(() {
-      _mood = BooMood.waiting;
-      _feedbackBusy = false;
+    // A short tactile pause prevents accidental double taps. Device speech can
+    // be slow or unavailable, so it must never hold the child's controls.
+    _feedbackUnlockTimer?.cancel();
+    _feedbackUnlockTimer = Timer(const Duration(milliseconds: 460), () {
+      if (mounted && generation == _activityGeneration) {
+        setState(() => _feedbackBusy = false);
+      }
     });
+
+    unawaited(
+      _speakMissFeedback(
+        outcome: outcome,
+        missCount: _missCount,
+        activityGeneration: generation,
+        promptGeneration: promptGeneration,
+      ),
+    );
   }
 
-  Future<void> _onMixed(ColorEntry result, Offset position) async {
-    if (_resolving) return;
+  Future<void> _speakMissFeedback({
+    required AnswerOutcome outcome,
+    required int missCount,
+    required int activityGeneration,
+    required int promptGeneration,
+  }) async {
+    // Naming the tapped colour turns a miss into a lesson. Generation checks
+    // prevent an interrupted retry from speaking over a newer answer/modal.
+    await _say('That is ${outcome.tapped.name}.');
+    if (!_feedbackSpeechIsCurrent(activityGeneration, promptGeneration)) {
+      return;
+    }
+
+    await _say(switch (missCount) {
+      1 => _promptText(),
+      2 => 'Try this one!',
+      _ => 'Here it is!',
+    });
+    if (!_feedbackSpeechIsCurrent(activityGeneration, promptGeneration)) {
+      return;
+    }
+
+    setState(() => _mood = BooMood.waiting);
+  }
+
+  bool _feedbackSpeechIsCurrent(int activityGeneration, int promptGeneration) {
+    return mounted &&
+        !_resolving &&
+        !_finishing &&
+        activityGeneration == _activityGeneration &&
+        promptGeneration == _promptGeneration;
+  }
+
+  void _onMixed(ColorEntry result, Offset position) {
+    if (_resolving || _finishing || _leaving) return;
+    _promptGeneration++;
     final int generation = _activityGeneration;
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
@@ -418,13 +483,11 @@ class _DreamscapeState extends State<Dreamscape> {
       _bigCelebration = false;
       _celebrationSerial++;
     });
-    AudioService.instance
-      ..playMixingMerge()
-      ..playCelebration()
-      ..playCheer();
+    // The activity owns the tactile merge sound. This single flourish marks
+    // completion without replaying the merge or stacking two cheers.
+    AudioService.instance.playCelebration();
 
-    await _say('Look! They made ${result.name}!');
-    if (!mounted || generation != _activityGeneration) return;
+    unawaited(_say('Look! They made ${result.name}!'));
 
     // A moment to admire the new colour before moving on.
     _advanceTimer?.cancel();
@@ -435,8 +498,9 @@ class _DreamscapeState extends State<Dreamscape> {
     });
   }
 
-  Future<void> _onShadeSorted(ColorEntry base, Offset position) async {
-    if (_resolving) return;
+  void _onShadeSorted(ColorEntry base, Offset position) {
+    if (_resolving || _finishing || _leaving) return;
+    _promptGeneration++;
     final int generation = _activityGeneration;
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
@@ -459,8 +523,7 @@ class _DreamscapeState extends State<Dreamscape> {
     AudioService.instance
       ..playCorrect()
       ..playCheer();
-    await _say('Lovely! ${base.name}, from light to dark!');
-    if (!mounted || generation != _activityGeneration) return;
+    unawaited(_say('Lovely! ${base.name}, from light to dark!'));
 
     _advanceTimer = Timer(const Duration(milliseconds: 850), () {
       if (mounted && generation == _activityGeneration) {
@@ -526,7 +589,7 @@ class _DreamscapeState extends State<Dreamscape> {
         final bool compactLandscape = AppSizing.isCompactLandscape(size);
         final double shortest = min(size.width, size.height);
         final double booSize = compactLandscape
-            ? shortest * 0.29
+            ? (shortest * 0.23).clamp(82.0, 116.0)
             : (shortest * AppSizing.booFraction(size.width)).clamp(96, 210);
         final bool reduced = MediaQuery.disableAnimationsOf(context);
 
@@ -540,7 +603,7 @@ class _DreamscapeState extends State<Dreamscape> {
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: expanded ? AppSpacing.xl : AppSpacing.sm,
-                vertical: AppSpacing.xs,
+                vertical: compactLandscape ? 0 : AppSpacing.xs,
               ),
               child: Column(
                 children: <Widget>[
@@ -553,11 +616,15 @@ class _DreamscapeState extends State<Dreamscape> {
                     onHearAgain: _hearAgain,
                     onCompassTap: _openCompass,
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: compactLandscape ? 0 : 4),
                   Expanded(
                     child: WonderStage(
                       child: IgnorePointer(
-                        ignoring: _resolving || _feedbackBusy,
+                        ignoring:
+                            _resolving ||
+                            _feedbackBusy ||
+                            _finishing ||
+                            _leaving,
                         child: AnimatedSwitcher(
                           duration: reduced
                               ? Duration.zero
@@ -774,20 +841,22 @@ class _DreamscapeState extends State<Dreamscape> {
   }
 
   void _hearAgain() {
-    if (_resolving || _feedbackBusy || _finishing) return;
+    if (_resolving || _feedbackBusy || _finishing || _leaving) return;
 
     AudioService.instance.playButtonTap();
     _speakPrompt();
   }
 
   Future<void> _confirmHome() async {
-    if (_resolving || _feedbackBusy || _finishing) return;
+    if (_resolving || _feedbackBusy || _finishing || _leaving) return;
     if (widget.onHome == null) return;
 
     AudioService.instance.playButtonTap();
 
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
+    _promptGeneration++;
+    unawaited(AudioService.instance.stopSpeaking());
 
     final bool confirmed =
         await showDialog<bool>(
@@ -853,16 +922,14 @@ class _DreamscapeState extends State<Dreamscape> {
       return;
     }
 
+    _leaving = true;
     _activityGeneration++;
 
     _idleChatterTimer?.cancel();
     _repeatPromptTimer?.cancel();
     _advanceTimer?.cancel();
 
-    await AudioService.instance.stopSpeaking();
-
-    if (!mounted) return;
-
+    unawaited(AudioService.instance.stopSpeaking());
     widget.onHome?.call();
   }
 
@@ -874,7 +941,8 @@ class _DreamscapeState extends State<Dreamscape> {
   Future<void> _showCompass() async {
     _repeatPromptTimer?.cancel();
     _idleChatterTimer?.cancel();
-    AudioService.instance.stopSpeaking();
+    _promptGeneration++;
+    unawaited(AudioService.instance.stopSpeaking());
     setState(() => _mood = BooMood.curious);
 
     final bool? finishRequested = await showModalBottomSheet<bool>(
@@ -974,8 +1042,7 @@ class _DreamscapeState extends State<Dreamscape> {
     _idleChatterTimer?.cancel();
     _repeatPromptTimer?.cancel();
     _advanceTimer?.cancel();
-    await AudioService.instance.stopSpeaking();
-    if (!mounted) return;
+    unawaited(AudioService.instance.stopSpeaking());
     AudioService.instance.playFinishSession();
     widget.onFinish(_sessionSnapshot());
   }

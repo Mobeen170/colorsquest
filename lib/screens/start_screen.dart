@@ -137,18 +137,30 @@ class _StartScreenState extends State<StartScreen>
               child: Align(
                 alignment: Alignment.topRight,
                 child: Semantics(
-                  label: 'Sound and grown-up settings',
+                  label: 'Grown-up settings. Press and hold to open.',
                   button: true,
-                  child: IconButton(
-                    onPressed: _starting ? null : widget.onSettings,
-                    tooltip: 'Sound and settings',
-                    constraints: const BoxConstraints(
-                      minWidth: 56,
-                      minHeight: 56,
+                  onLongPress: _starting ? null : widget.onSettings,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onLongPress: _starting ? null : widget.onSettings,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.softInk.withValues(alpha: 0.14),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.more_horiz,
+                            size: 16,
+                            color: AppColors.softInk.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ),
                     ),
-                    icon: const Icon(Icons.volume_up_rounded),
-                    color: AppColors.moonInk,
-                    disabledColor: AppColors.softInk,
                   ),
                 ),
               ),

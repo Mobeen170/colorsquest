@@ -61,6 +61,7 @@ class PopTheColour extends StatefulWidget {
 class _PopTheColourState extends State<PopTheColour>
     with SingleTickerProviderStateMixin {
   late final AnimationController _drift;
+  bool _reduceMotion = false;
 
   /// Bubbles the child has already ruled out, which have floated away.
   final Set<String> _driftedAway = <String>{};
@@ -78,7 +79,20 @@ class _PopTheColourState extends State<PopTheColour>
     _drift = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 11),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _drift
+        ..stop()
+        ..value = 0;
+    } else if (!_drift.isAnimating) {
+      _drift.repeat();
+    }
   }
 
   @override
@@ -123,7 +137,7 @@ class _PopTheColourState extends State<PopTheColour>
     final bool correct = tapped.name == widget.round.target.name;
     AudioService.instance.playSoftBubble();
 
-    if (!correct) {
+    if (!correct && !MediaQuery.disableAnimationsOf(context)) {
       setState(() => _wobbling = tapped.name);
       _wobbleTimer?.cancel();
       _wobbleTimer = Timer(const Duration(milliseconds: 420), () {
@@ -139,8 +153,6 @@ class _PopTheColourState extends State<PopTheColour>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
-    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double width = constraints.maxWidth;
@@ -164,7 +176,7 @@ class _PopTheColourState extends State<PopTheColour>
                 options: visible,
                 target: widget.round.target,
                 drift: _drift,
-                reduceMotion: reduceMotion,
+                reduceMotion: _reduceMotion,
                 wobbling: _wobbling,
                 missCount: widget.missCount,
                 onTap: _handleTap,
@@ -428,6 +440,7 @@ class _WobbleOnMiss extends StatefulWidget {
 class _WobbleOnMissState extends State<_WobbleOnMiss>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -436,13 +449,27 @@ class _WobbleOnMissState extends State<_WobbleOnMiss>
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    if (widget.active) _controller.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else if (widget.active && _controller.value == 0) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
   void didUpdateWidget(_WobbleOnMiss oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active) _controller.forward(from: 0);
+    if (widget.active && !oldWidget.active && !_reduceMotion) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
@@ -453,7 +480,7 @@ class _WobbleOnMissState extends State<_WobbleOnMiss>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    if (_reduceMotion) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

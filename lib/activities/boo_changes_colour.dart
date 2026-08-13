@@ -42,6 +42,7 @@ class BooChangesColour extends StatefulWidget {
 class _BooChangesColourState extends State<BooChangesColour>
     with SingleTickerProviderStateMixin {
   late final AnimationController _transition;
+  bool _reduceMotion = false;
   late Color _shownColor;
   late ColorEntry _shownEntry;
 
@@ -60,7 +61,20 @@ class _BooChangesColourState extends State<BooChangesColour>
     _transition = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    )..forward();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _transition
+        ..stop()
+        ..value = 1;
+    } else if (_transition.value == 0 && !_transition.isAnimating) {
+      _transition.forward();
+    }
   }
 
   @override
@@ -71,7 +85,11 @@ class _BooChangesColourState extends State<BooChangesColour>
       _shownColor = widget.round.target.color;
       _shownEntry = widget.round.target;
       _wobbling = null;
-      _transition.forward(from: 0);
+      if (_reduceMotion) {
+        _transition.value = 1;
+      } else {
+        _transition.forward(from: 0);
+      }
     }
   }
 
@@ -86,7 +104,7 @@ class _BooChangesColourState extends State<BooChangesColour>
     final bool correct = entry.name == widget.round.target.name;
     AudioService.instance.playSoftBubble();
 
-    if (!correct) {
+    if (!correct && !MediaQuery.disableAnimationsOf(context)) {
       setState(() => _wobbling = entry.name);
       _wobbleTimer?.cancel();
       _wobbleTimer = Timer(const Duration(milliseconds: 420), () {
@@ -103,8 +121,6 @@ class _BooChangesColourState extends State<BooChangesColour>
   @override
   Widget build(BuildContext context) {
     final Settings settings = SettingsScope.of(context);
-    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double shortest = min(
@@ -133,11 +149,11 @@ class _BooChangesColourState extends State<BooChangesColour>
               flex: compact ? 4 : 5,
               child: Center(
                 child: AnimatedBuilder(
-                  animation: reduceMotion
+                  animation: _reduceMotion
                       ? const AlwaysStoppedAnimation<double>(1)
                       : _transition,
                   builder: (BuildContext context, Widget? child) {
-                    final double t = reduceMotion
+                    final double t = _reduceMotion
                         ? 1
                         : Curves.easeInOut.transform(_transition.value);
 
@@ -154,6 +170,8 @@ class _BooChangesColourState extends State<BooChangesColour>
                           constraints.maxHeight * 0.48,
                         ),
                         mood: BooMood.zoom,
+                        semanticLabel: 'Boo glowing ${_shownEntry.name}',
+                        semanticHint: 'Tap to hear the question again',
                         onTap: widget.onBooTapped,
                       ),
                     );
@@ -259,6 +277,7 @@ class _Shiver extends StatefulWidget {
 
 class _ShiverState extends State<_Shiver> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -267,13 +286,27 @@ class _ShiverState extends State<_Shiver> with SingleTickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    if (widget.active) _controller.forward(from: 0);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else if (widget.active && _controller.value == 0) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
   void didUpdateWidget(_Shiver oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active) _controller.forward(from: 0);
+    if (widget.active && !oldWidget.active && !_reduceMotion) {
+      _controller.forward(from: 0);
+    }
   }
 
   @override
@@ -284,7 +317,7 @@ class _ShiverState extends State<_Shiver> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    if (_reduceMotion) return widget.child;
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

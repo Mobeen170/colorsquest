@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:colorsquest/activities/pop_the_colour.dart';
+import 'package:colorsquest/audio/audio_service.dart';
 import 'package:colorsquest/dreamscape.dart';
 import 'package:colorsquest/main.dart';
 import 'package:colorsquest/screens/loading_screen.dart';
@@ -67,11 +68,22 @@ Future<void> _enterDreamscape(WidgetTester tester) async {
 }
 
 Future<void> _openFinishDialog(WidgetTester tester) async {
-  await tester.tap(find.byIcon(Icons.explore_rounded));
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 420));
+  final Finder games = find.byKey(const Key('kid-games-button'));
+  final Finder compass = find.byType(PlayCompassSheet);
 
-  expect(find.byType(PlayCompassSheet), findsOneWidget);
+  // A correct answer briefly locks navigation while Boo celebrates. Retry the
+  // real child-facing control for a bounded interval instead of coupling this
+  // flow test to the celebration's exact presentation duration.
+  for (int attempt = 0; attempt < 25 && compass.evaluate().isEmpty; attempt++) {
+    await tester.tap(games);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  expect(compass, findsOneWidget);
+  // Finish the bottom sheet's bounded entrance before asking its scroll view
+  // to reveal the control near the end of the content.
+  await tester.pump(const Duration(milliseconds: 420));
   final Finder finish = find.byKey(const Key('finish-for-now-button'));
   await tester.ensureVisible(finish);
   await tester.pump();
@@ -114,6 +126,36 @@ void _expectZeroSessionSummary(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('app lifecycle observer suspends and restores requested audio', (
+    WidgetTester tester,
+  ) async {
+    final AudioService audio = AudioService.instance;
+    await tester.pumpWidget(
+      ColorGameApp(
+        worldInitializer: () async {},
+        minimumLoadingDisplay: Duration.zero,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 3100));
+    await tester.tap(find.byKey(const Key('play-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 280));
+    await _pumpUntil(tester, find.byType(Dreamscape));
+    expect(audio.worldAudioRequested, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(audio.musicWanted, isFalse);
+    expect(audio.soundEffectsWanted, isFalse);
+    expect(audio.voiceWanted, isFalse);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(audio.musicWanted, isTrue);
+    expect(audio.soundEffectsWanted, isTrue);
+    expect(audio.voiceWanted, isTrue);
+  });
+
   group('Coloriboo app shell', () {
     testWidgets('opens on the approved branded start screen', (
       WidgetTester tester,

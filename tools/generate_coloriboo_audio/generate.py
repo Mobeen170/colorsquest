@@ -310,13 +310,13 @@ def generate() -> None:
 
     music_duration = 24.0
     write_wav(
-        MUSIC_DIR / "coloriboo_twilight_loop.wav",
+        MUSIC_DIR / "coloriboo_pop_loop.wav",
         music_duration,
         music_sampler(music_duration),
         master=0.92,
         edge_fade=False,
     )
-    print(f"generated {'coloriboo_twilight_loop.wav':25} {music_duration:5.2f}s")
+    print(f"generated {'coloriboo_pop_loop.wav':25} {music_duration:5.2f}s")
 
 
 if __name__ == "__main__":

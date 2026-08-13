@@ -6,6 +6,20 @@ import 'package:colorsquest/world/paper_background.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+String _assetNameOf(ImageProvider<Object> provider) {
+  ImageProvider<Object> current = provider;
+
+  while (current is ResizeImage) {
+    current = current.imageProvider;
+  }
+
+  if (current is AssetImage) {
+    return current.assetName;
+  }
+
+  return '';
+}
+
 void main() {
   testWidgets('Boo uses painted family art with exact colour auras', (
     WidgetTester tester,
@@ -53,7 +67,7 @@ void main() {
     expect(
       tester
           .widgetList<Image>(find.byType(Image))
-          .map((Image image) => (image.image as AssetImage).assetName)
+          .map((Image image) => _assetNameOf(image.image))
           .toSet(),
       hasLength(5),
     );

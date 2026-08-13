@@ -50,6 +50,8 @@ class Boo extends StatefulWidget {
     this.colorVariant,
     this.color,
     this.tint,
+    this.semanticLabel = 'Boo',
+    this.semanticHint,
     this.leanTowards = 0,
     this.onTap,
   });
@@ -80,6 +82,15 @@ class Boo extends StatefulWidget {
   /// Null leaves only Boo's usual blue companion glow.
   final Color? tint;
 
+  /// Spoken identity for assistive technology.
+  ///
+  /// Activities may describe information that is visibly painted on Boo,
+  /// such as the exact aura in Boo Changes Colour.
+  final String semanticLabel;
+
+  /// Optional context for Boo's tap action.
+  final String? semanticHint;
+
   /// Nudges Boo to lean left or right, from -1 to 1.
   ///
   /// Used to point at the right answer when a child is stuck.
@@ -101,21 +112,31 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
   /// One-off reactions: hops and zooms.
   late final AnimationController _react;
 
+  /// One stable Image widget retains the previous decoded pixels while its
+  /// provider changes, avoiding blank or canonical-color flashes.
+  late BooAssetSpec _artworkSpec;
+  late ImageProvider<Object> _artworkProvider;
+
   @override
   void initState() {
     super.initState();
 
+    _artworkSpec = BooAssetCatalog.resolve(
+      state: widget.visualState,
+      variant: widget.colorVariant,
+      color: widget.color,
+    );
+    _artworkProvider = BooAssetCatalog.providerFor(_artworkSpec.path);
+
     _idle = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
-    )..repeat();
+    );
 
     _react = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 520),
     );
-
-    if (_isReaction(widget.mood)) _react.forward(from: 0);
   }
 
   @override
@@ -125,8 +146,12 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
     if (MediaQuery.disableAnimationsOf(context)) {
       _idle.stop();
       _react.stop();
+      if (_isReaction(widget.mood)) _react.value = 1;
     } else if (!_idle.isAnimating) {
       _idle.repeat();
+      if (_isReaction(widget.mood) && _react.value == 0) {
+        _react.forward(from: 0);
+      }
     }
   }
 
@@ -142,6 +167,12 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
         !MediaQuery.disableAnimationsOf(context)) {
       _react.forward(from: 0);
     }
+
+    final BooAssetSpec requested = _resolvedSpec();
+    if (requested.path != _artworkSpec.path) {
+      _artworkSpec = requested;
+      _artworkProvider = BooAssetCatalog.providerFor(requested.path);
+    }
   }
 
   @override
@@ -154,39 +185,9 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final BooAssetSpec spec = BooAssetCatalog.resolve(
-      state: widget.visualState,
-      variant: widget.colorVariant,
-      color: widget.color,
-    );
+    final BooAssetSpec spec = _artworkSpec;
 
-    final Widget selectedImage = _assetFrame(spec);
-    final Widget image = reduceMotion
-        ? selectedImage
-        : AnimatedSwitcher(
-            duration: const Duration(milliseconds: 240),
-            reverseDuration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            layoutBuilder:
-                (Widget? currentChild, List<Widget> previousChildren) {
-                  return Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: <Widget>[...previousChildren, ?currentChild],
-                  );
-                },
-            transitionBuilder: (Widget child, Animation<double> animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
-                  child: child,
-                ),
-              );
-            },
-            child: selectedImage,
-          );
+    final Widget image = _assetFrame(spec, _artworkProvider);
 
     final Widget artwork = SizedBox.square(
       dimension: widget.size,
@@ -220,7 +221,10 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
     );
 
     return Semantics(
-      label: 'Boo',
+      label: widget.semanticLabel,
+      hint:
+          widget.semanticHint ??
+          (widget.onTap == null ? null : 'Tap to hear Boo'),
       button: widget.onTap != null,
       child: GestureDetector(
         onTap: widget.onTap,
@@ -241,15 +245,20 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
     );
   }
 
-  Widget _assetFrame(BooAssetSpec spec) {
+  BooAssetSpec _resolvedSpec() => BooAssetCatalog.resolve(
+    state: widget.visualState,
+    variant: widget.colorVariant,
+    color: widget.color,
+  );
+
+  Widget _assetFrame(BooAssetSpec spec, ImageProvider<Object> provider) {
     return SizedBox.square(
       key: ValueKey<String>('boo-artwork-${spec.path}'),
       dimension: widget.size,
-      child: Image.asset(
-        spec.path,
+      child: Image(
+        image: provider,
         width: widget.size,
         height: widget.size,
-        cacheWidth: BooAssetCatalog.decodeWidth,
         alignment: spec.alignment,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
@@ -261,13 +270,12 @@ class _BooState extends State<Boo> with TickerProviderStateMixin {
               int? frame,
               bool wasSynchronouslyLoaded,
             ) {
-              // Viewport compensation applies only to this successfully built
-              // production asset. Error fallbacks get their own metadata.
-              return Transform.scale(
+              final Widget artwork = Transform.scale(
                 scale: spec.displayScale,
                 alignment: spec.alignment,
                 child: child,
               );
+              return artwork;
             },
         errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
           return _canonicalFallback(spec);

@@ -49,84 +49,107 @@ class WonderTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Size screen = MediaQuery.sizeOf(context);
+
+    final bool compactLandscape =
+        screen.width > screen.height && screen.height < 520;
+
+    final bool hasKidControls =
+        onHomeTap != null && onSoundTap != null && onHearAgain != null;
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool narrow = constraints.maxWidth < 370;
 
         return Padding(
-          padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
+          padding: EdgeInsets.fromLTRB(
+            4,
+            compactLandscape ? 1 : 5,
+            4,
+            compactLandscape ? 1 : 5,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(
-                      narrow ? 'BOO' : 'COLORIBOO',
-                      style: const TextStyle(
-                        color: AppColors.starlight,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
+              // On short landscape phones the child controls are more
+              // important than decorative branding. Removing this row gives
+              // the learning stage ~35 extra vertical pixels.
+              if (!compactLandscape || !hasKidControls) ...<Widget>[
+                Row(
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: AppColors.white.withValues(alpha: 0.16),
+                        ),
+                      ),
+                      child: Text(
+                        narrow ? 'BOO' : 'COLORIBOO',
+                        style: const TextStyle(
+                          color: AppColors.starlight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Text(
-                      place.title,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.starlight,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        place.title,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.starlight,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 7),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.bubbleMint.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(
-                          Icons.auto_awesome_rounded,
-                          color: AppColors.bubbleMint,
-                          size: 16,
+                    const SizedBox(width: 7),
+                    Semantics(
+                      label: '$discoveryCount colors discovered',
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
                         ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '$discoveryCount',
-                          style: const TextStyle(
-                            color: AppColors.starlight,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bubbleMint.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.auto_awesome_rounded,
+                              color: AppColors.bubbleMint,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$discoveryCount',
+                              style: const TextStyle(
+                                color: AppColors.starlight,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              if (onHomeTap != null &&
-                  onSoundTap != null &&
-                  onHearAgain != null) ...<Widget>[
+                  ],
+                ),
                 const SizedBox(height: 6),
+              ],
+
+              if (hasKidControls)
                 Row(
                   children: <Widget>[
                     Expanded(
@@ -180,7 +203,6 @@ class WonderTopBar extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
             ],
           ),
         );
@@ -411,6 +433,7 @@ class _WonderCelebrationState extends State<WonderCelebration>
   late final AnimationController _controller;
   late final String _praise;
   late final int _seed;
+  bool _reduceMotion = false;
 
   static const List<String> _praises = <String>[
     'YES!',
@@ -438,7 +461,20 @@ class _WonderCelebrationState extends State<WonderCelebration>
     _controller = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: widget.big ? 1700 : 1450),
-    )..forward();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reduceMotion) {
+      _controller
+        ..stop()
+        ..value = 1;
+    } else if (!_controller.isAnimating && _controller.value < 1) {
+      _controller.forward();
+    }
   }
 
   @override
@@ -449,108 +485,115 @@ class _WonderCelebrationState extends State<WonderCelebration>
 
   @override
   Widget build(BuildContext context) {
-    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label:
+          '$_praise ${widget.label}. '
+          '${widget.big ? 'The sky is glowing!' : 'You found the color!'}',
+      child: ExcludeSemantics(
+        child: IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (BuildContext context, Widget? child) {
+              final double t = _reduceMotion ? 0.75 : _controller.value;
 
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (BuildContext context, Widget? child) {
-          final double t = reduced ? 0.75 : _controller.value;
+              final double reveal = _reduceMotion
+                  ? 1
+                  : Curves.easeOutBack.transform(min(1.0, t * 2.2));
 
-          final double reveal = reduced
-              ? 1
-              : Curves.easeOutBack.transform(min(1.0, t * 2.2));
-
-          return Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              CustomPaint(
-                painter: _CelebrationConfettiPainter(
-                  progress: t,
-                  seed: _seed,
-                  lessonColor: widget.color,
-                  big: widget.big,
-                  reduced: reduced,
-                ),
-              ),
-              Center(
-                child: Transform.scale(
-                  scale: reveal,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 335),
-                    margin: const EdgeInsets.symmetric(horizontal: 18),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: widget.big ? 30 : 24,
-                      vertical: widget.big ? 22 : 17,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: <Color>[
-                          AppColors.white.withValues(alpha: 0.98),
-                          widget.color.withValues(alpha: 0.14),
-                          AppColors.white.withValues(alpha: 0.98),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(34),
-                      border: Border.all(
-                        color: widget.color.withValues(alpha: 0.70),
-                        width: widget.big ? 4 : 3,
-                      ),
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: widget.color.withValues(alpha: 0.42),
-                          blurRadius: widget.big ? 46 : 34,
-                          spreadRadius: widget.big ? 9 : 5,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Text(
-                          _praise,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.moonInk,
-                            fontSize: widget.big ? 28 : 24,
-                            fontWeight: FontWeight.w900,
-                            height: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            widget.label.toUpperCase(),
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: AppColors.darkInk,
-                              fontSize: widget.big ? 38 : 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.big
-                              ? 'THE SKY IS GLOWING!'
-                              : 'YOU FOUND THE COLOUR!',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppColors.softInk,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+              return Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  CustomPaint(
+                    painter: _CelebrationConfettiPainter(
+                      progress: t,
+                      seed: _seed,
+                      lessonColor: widget.color,
+                      big: widget.big,
+                      reduced: _reduceMotion,
                     ),
                   ),
-                ),
-              ),
-            ],
-          );
-        },
+                  Center(
+                    child: Transform.scale(
+                      scale: reveal,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 335),
+                        margin: const EdgeInsets.symmetric(horizontal: 18),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: widget.big ? 30 : 24,
+                          vertical: widget.big ? 22 : 17,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: <Color>[
+                              AppColors.white.withValues(alpha: 0.98),
+                              widget.color.withValues(alpha: 0.14),
+                              AppColors.white.withValues(alpha: 0.98),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(34),
+                          border: Border.all(
+                            color: widget.color.withValues(alpha: 0.70),
+                            width: widget.big ? 4 : 3,
+                          ),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: widget.color.withValues(alpha: 0.42),
+                              blurRadius: widget.big ? 46 : 34,
+                              spreadRadius: widget.big ? 9 : 5,
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Text(
+                              _praise,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.moonInk,
+                                fontSize: widget.big ? 28 : 24,
+                                fontWeight: FontWeight.w900,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                widget.label.toUpperCase(),
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: AppColors.darkInk,
+                                  fontSize: widget.big ? 38 : 32,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.big
+                                  ? 'THE SKY IS GLOWING!'
+                                  : 'YOU FOUND THE COLOUR!',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.softInk,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }

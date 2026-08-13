@@ -19,8 +19,8 @@ class AudioService {
 
   static const Duration _operationTimeout = Duration(seconds: 3);
   static const Duration _speechTimeout = Duration(seconds: 5);
-  static const double _musicVolume = 0.16;
-  static const double _duckedVolume = _musicVolume * 0.22;
+  static const double _musicVolume = 0.34;
+  static const double _duckedVolume = _musicVolume * 0.16;
 
   @visibleForTesting
   static const Map<String, String> effectAssetPaths = <String, String>{
@@ -66,8 +66,10 @@ class AudioService {
   bool _engineReady = false;
   bool _voiceReady = false;
   bool _worldEntered = false;
+  bool _appActive = true;
   bool _musicStarting = false;
   bool _speechActive = false;
+  int _lifecycleGeneration = 0;
   int _speechGeneration = 0;
 
   FlutterTts? _tts;
@@ -87,21 +89,27 @@ class AudioService {
       _settings = settings;
       settings.addListener(_onSettingsChanged);
     }
-    return _initialization ??= _initialize();
+    final int generation = _lifecycleGeneration;
+    return _initialization ??= _initialize(generation);
   }
 
-  Future<void> _initialize() async {
+  Future<void> _initialize(int generation) async {
     // Game audio is the only preparation the world-entry screen waits for.
     // Platform TTS setup is opportunistic: some devices/plugins never answer
     // capability calls, and Boo's optional voice must not hold up play.
-    await _startEngine();
-    unawaited(_startVoice());
+    await _startEngine(generation);
+    if (generation != _lifecycleGeneration) return;
+    unawaited(_startVoice(generation));
   }
 
-  Future<void> _startEngine() async {
+  Future<void> _startEngine(int generation) async {
     try {
       if (!SoLoud.instance.isInitialized) {
         await SoLoud.instance.init().timeout(_operationTimeout);
+      }
+      if (generation != _lifecycleGeneration) {
+        if (SoLoud.instance.isInitialized) SoLoud.instance.deinit();
+        return;
       }
       _engineReady = SoLoud.instance.isInitialized;
       if (!_engineReady) return;
@@ -115,49 +123,65 @@ class AudioService {
     // Loading is concurrent so one slow optional asset cannot make the branded
     // loading screen wait once the audio engine itself is ready.
     final List<Future<void>> sourceLoads = effectAssetPaths.entries
-        .map((MapEntry<String, String> entry) => _loadEffect(entry))
+        .map((MapEntry<String, String> entry) => _loadEffect(entry, generation))
         .toList();
-    sourceLoads.add(_loadMusic());
-    sourceLoads.add(_loadTone());
+    sourceLoads.add(_loadMusic(generation));
+    sourceLoads.add(_loadTone(generation));
     try {
       await Future.wait(sourceLoads).timeout(_operationTimeout);
     } on TimeoutException {
       debugPrint('Coloriboo: some audio took too long; using what is ready.');
     }
+    if (generation != _lifecycleGeneration) {
+      try {
+        if (SoLoud.instance.isInitialized) SoLoud.instance.deinit();
+      } catch (_) {
+        // A newer lifecycle already owns engine teardown.
+      }
+      _effects.clear();
+      _musicSource = null;
+      _tone = null;
+      _engineReady = false;
+    }
   }
 
-  Future<void> _loadEffect(MapEntry<String, String> entry) async {
+  Future<void> _loadEffect(
+    MapEntry<String, String> entry,
+    int generation,
+  ) async {
     try {
       final AudioSource source = await SoLoud.instance
           .loadAsset(entry.value)
           .timeout(_operationTimeout);
-      _effects[entry.key] = source;
+      if (generation == _lifecycleGeneration) _effects[entry.key] = source;
     } catch (_) {
       // Each asset is optional and independent from every other asset.
     }
   }
 
-  Future<void> _loadMusic() async {
+  Future<void> _loadMusic(int generation) async {
     try {
-      _musicSource = await SoLoud.instance
+      final AudioSource source = await SoLoud.instance
           .loadAsset(musicAssetPath)
           .timeout(_operationTimeout);
+      if (generation == _lifecycleGeneration) _musicSource = source;
     } catch (_) {
-      _musicSource = null;
+      if (generation == _lifecycleGeneration) _musicSource = null;
     }
   }
 
-  Future<void> _loadTone() async {
+  Future<void> _loadTone(int generation) async {
     try {
-      _tone = await SoLoud.instance
+      final AudioSource source = await SoLoud.instance
           .loadWaveform(WaveForm.sin, false, 1, 0)
           .timeout(_operationTimeout);
+      if (generation == _lifecycleGeneration) _tone = source;
     } catch (_) {
-      _tone = null;
+      if (generation == _lifecycleGeneration) _tone = null;
     }
   }
 
-  Future<void> _startVoice() async {
+  Future<void> _startVoice(int generation) async {
     try {
       final FlutterTts tts = FlutterTts();
       await Future.wait(<Future<dynamic>>[
@@ -166,6 +190,14 @@ class AudioService {
         tts.setVolume(0.9),
         tts.awaitSpeakCompletion(true),
       ]);
+      if (generation != _lifecycleGeneration) {
+        try {
+          await tts.stop().timeout(const Duration(seconds: 1));
+        } catch (_) {
+          // The stale optional voice is already abandoned.
+        }
+        return;
+      }
       _tts = tts;
       _voiceReady = true;
     } catch (_) {
@@ -194,9 +226,10 @@ class AudioService {
   /// Fades the garden loop away before returning to the silent start screen.
   Future<void> returnToStart() async {
     _worldEntered = false;
+    final Future<void> voiceStop = stopSpeaking();
     final SoundHandle? handle = _musicHandle;
-    if (!_engineReady || handle == null) return;
     try {
+      if (!_engineReady || handle == null) return;
       SoLoud.instance.fadeVolume(handle, 0, const Duration(milliseconds: 450));
       await Future<void>.delayed(const Duration(milliseconds: 470));
       if (!_worldEntered && identical(handle, _musicHandle)) {
@@ -205,7 +238,26 @@ class AudioService {
       }
     } catch (_) {
       if (identical(handle, _musicHandle)) _musicHandle = null;
+    } finally {
+      // An end-screen Boo tap may still be speaking when HOME is pressed.
+      // Finish that interruption before the silent start screen is exposed.
+      await voiceStop;
     }
+  }
+
+  /// Suspends optional output while Coloriboo is backgrounded or the device
+  /// is locked, then restores at most one loop when the app becomes active.
+  /// Gameplay state stays in memory; only sound is paused.
+  Future<void> setAppActive(bool active) async {
+    if (_appActive == active) return;
+    _appActive = active;
+    try {
+      if (_engineReady) SoLoud.instance.setGlobalVolume(active ? 1 : 0);
+    } catch (_) {
+      // Lifecycle safety still falls back to the per-operation output gates.
+    }
+    if (!active) await stopSpeaking();
+    await _updateMusic();
   }
 
   void _onSettingsChanged() {
@@ -217,7 +269,8 @@ class AudioService {
 
   Future<void> _updateMusic() async {
     if (!_engineReady || _musicSource == null) return;
-    final bool wanted = _worldEntered && (_settings?.effectiveMusic ?? false);
+    final bool wanted =
+        _appActive && _worldEntered && (_settings?.effectiveMusic ?? false);
 
     if (wanted && _musicHandle != null) {
       try {
@@ -238,7 +291,9 @@ class AudioService {
         final SoundHandle handle = await SoLoud.instance
             .play(_musicSource!, volume: 0, looping: true)
             .timeout(_operationTimeout);
-        if (_worldEntered && (_settings?.effectiveMusic ?? false)) {
+        if (_appActive &&
+            _worldEntered &&
+            (_settings?.effectiveMusic ?? false)) {
           _musicHandle = handle;
           SoLoud.instance.setProtectVoice(handle, true);
           SoLoud.instance.fadeVolume(
@@ -271,16 +326,35 @@ class AudioService {
   /// Boo speaks while the loop ducks. A timeout, error, interruption, or newer
   /// speech request always restores music, so it cannot stay quietly stuck.
   Future<void> speak(String text) async {
-    if (!_voiceReady ||
+    if (!_appActive ||
+        !_worldEntered ||
+        !_voiceReady ||
         _settings?.effectiveVoice != true ||
         text.trim().isEmpty) {
       return;
     }
 
+    final bool interruptingSpeech = _speechActive;
     final int request = ++_speechGeneration;
     _speechActive = true;
     _duckMusic(down: true);
     try {
+      // Flutter TTS platforms disagree about a second speak call: Android can
+      // reject it while iOS queues it. Explicitly interrupt so Coloriboo has
+      // one deterministic rule everywhere: the newest prompt wins.
+      if (interruptingSpeech) {
+        try {
+          await _tts!.stop().timeout(const Duration(seconds: 1));
+        } catch (_) {
+          // Still attempt the newest prompt; voice is optional and bounded.
+        }
+        if (request != _speechGeneration ||
+            !_appActive ||
+            !_worldEntered ||
+            _settings?.effectiveVoice != true) {
+          return;
+        }
+      }
       await _tts!.speak(text).timeout(_speechTimeout);
     } on TimeoutException {
       try {
@@ -300,14 +374,19 @@ class AudioService {
 
   /// Stops Boo mid-sentence and restores the music even if stop itself fails.
   Future<void> stopSpeaking() async {
-    _speechGeneration++;
+    final int request = ++_speechGeneration;
     try {
       await _tts?.stop().timeout(const Duration(seconds: 1));
     } catch (_) {
       // Nothing usable to stop.
     } finally {
-      _speechActive = false;
-      _duckMusic(down: false);
+      // A new prompt is allowed to begin while the platform completes an old
+      // stop request. That old request must not mark the new speech finished
+      // or unduck its music early.
+      if (request == _speechGeneration) {
+        _speechActive = false;
+        _duckMusic(down: false);
+      }
     }
   }
 
@@ -315,9 +394,11 @@ class AudioService {
     final SoundHandle? handle = _musicHandle;
     if (!_engineReady || handle == null) return;
     try {
+      final bool musicShouldPlay =
+          _appActive && _worldEntered && (_settings?.effectiveMusic ?? false);
       SoLoud.instance.fadeVolume(
         handle,
-        down ? _duckedVolume : _musicVolume,
+        musicShouldPlay ? (down ? _duckedVolume : _musicVolume) : 0,
         Duration(milliseconds: down ? 180 : 420),
       );
     } catch (_) {
@@ -326,7 +407,11 @@ class AudioService {
   }
 
   bool _claimEffect(String name) {
-    if (!_engineReady || _settings?.effectiveSoundEffects != true) return false;
+    if (!_appActive ||
+        !_engineReady ||
+        _settings?.effectiveSoundEffects != true) {
+      return false;
+    }
     final DateTime now = DateTime.now();
     final DateTime? previous = _lastEffectAt[name];
     final Duration cooldown =
@@ -337,18 +422,24 @@ class AudioService {
   }
 
   void _playEffect(String name, {double volume = 0.48}) {
-    if (!_claimEffect(name)) return;
     final AudioSource? source = _effects[name];
     if (source == null) return;
+    // Do not consume an effect's cooldown while its optional file is still
+    // loading or unavailable; the first playable request should still sound.
+    if (!_claimEffect(name)) return;
     final double safeVolume = _speechActive ? min(volume, 0.34) : volume;
     unawaited(_playSource(source, safeVolume));
   }
 
   Future<void> _playSource(AudioSource source, double volume) async {
     try {
-      await SoLoud.instance
+      if (!_appActive) return;
+      final SoundHandle handle = await SoLoud.instance
           .play(source, volume: volume)
           .timeout(const Duration(seconds: 1));
+      if (!_appActive) {
+        await SoLoud.instance.stop(handle).timeout(const Duration(seconds: 1));
+      }
     } catch (_) {
       // One missed sound must never interrupt touch feedback or navigation.
     }
@@ -396,7 +487,8 @@ class AudioService {
 
   /// Plays the note belonging to a colour from Coloriboo's pentatonic scale.
   void playColorNote(int semitone, {bool withThird = false}) {
-    if (!_engineReady ||
+    if (!_appActive ||
+        !_engineReady ||
         _tone == null ||
         _settings?.effectiveSoundEffects != true) {
       return;
@@ -418,7 +510,8 @@ class AudioService {
 
   void _playTone(int semitone, {double seconds = 0.4, double volume = 0.3}) {
     final AudioSource? tone = _tone;
-    if (!_engineReady ||
+    if (!_appActive ||
+        !_engineReady ||
         tone == null ||
         _settings?.effectiveSoundEffects != true) {
       return;
@@ -433,11 +526,16 @@ class AudioService {
     double volume,
   ) async {
     try {
+      if (!_appActive) return;
       final double frequency = 261.63 * pow(2, semitone / 12.0);
       SoLoud.instance.setWaveformFreq(tone, frequency);
       final SoundHandle handle = await SoLoud.instance
           .play(tone, volume: volume)
           .timeout(const Duration(seconds: 1));
+      if (!_appActive) {
+        await SoLoud.instance.stop(handle).timeout(const Duration(seconds: 1));
+        return;
+      }
       SoLoud.instance.fadeVolume(
         handle,
         0,
@@ -456,19 +554,29 @@ class AudioService {
   bool get worldAudioRequested => _worldEntered;
 
   @visibleForTesting
-  bool get musicWanted => _worldEntered && (_settings?.effectiveMusic ?? false);
+  bool get musicWanted =>
+      _appActive && _worldEntered && (_settings?.effectiveMusic ?? false);
 
   @visibleForTesting
-  bool get soundEffectsWanted => _settings?.effectiveSoundEffects ?? false;
+  bool get soundEffectsWanted =>
+      _appActive && (_settings?.effectiveSoundEffects ?? false);
 
   @visibleForTesting
-  bool get voiceWanted => _settings?.effectiveVoice ?? false;
+  bool get voiceWanted => _appActive && (_settings?.effectiveVoice ?? false);
+
+  @visibleForTesting
+  bool get voiceReady => _voiceReady;
+
+  @visibleForTesting
+  bool get speechActive => _speechActive;
 
   /// Releases both engines. Safe after partial or failed initialization.
   void dispose() {
+    _lifecycleGeneration++;
     _settings?.removeListener(_onSettingsChanged);
     _settings = null;
     _worldEntered = false;
+    _appActive = true;
     _speechGeneration++;
     try {
       _tts?.stop();

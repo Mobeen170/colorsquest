@@ -23,7 +23,7 @@ void main() {
       }
     });
 
-    test('pop music is a quiet 24 second stereo PCM loop', () async {
+    test('pop music is a normalized 24 second stereo PCM loop', () async {
       final ByteData data = await rootBundle.load(AudioService.musicAssetPath);
 
       expect(_ascii(data, 0, 4), 'RIFF');
@@ -34,6 +34,14 @@ void main() {
       final int bytesPerSecond = data.getUint32(28, Endian.little);
       final int dataBytes = data.getUint32(40, Endian.little);
       expect(dataBytes / bytesPerSecond, closeTo(24.0, 0.01));
+
+      int peak = 0;
+      for (int offset = 44; offset + 1 < data.lengthInBytes; offset += 2) {
+        final int magnitude = data.getInt16(offset, Endian.little).abs();
+        if (magnitude > peak) peak = magnitude;
+      }
+      expect(peak / 32767, closeTo(0.72, 0.005));
+      expect(peak, lessThanOrEqualTo(32767));
 
       // Loop ends meet near zero without a hard full-scale discontinuity.
       final int first = data.getInt16(44, Endian.little);
@@ -47,6 +55,10 @@ void main() {
     () async {
       final Settings settings = Settings();
       final AudioService audio = AudioService.instance;
+      addTearDown(() {
+        audio.dispose();
+        settings.dispose();
+      });
 
       final Future<void> first = audio.start(settings);
       final Future<void> second = audio.start(settings);
@@ -62,6 +74,18 @@ void main() {
       expect(audio.worldAudioRequested, isTrue);
       expect(audio.musicWanted, isTrue);
 
+      await audio.setAppActive(false);
+      expect(audio.worldAudioRequested, isTrue);
+      expect(audio.musicWanted, isFalse);
+      expect(audio.soundEffectsWanted, isFalse);
+      expect(audio.voiceWanted, isFalse);
+
+      await audio.setAppActive(true);
+      expect(audio.worldAudioRequested, isTrue);
+      expect(audio.musicWanted, isTrue);
+      expect(audio.soundEffectsWanted, isTrue);
+      expect(audio.voiceWanted, isTrue);
+
       settings
         ..music = false
         ..soundEffects = false
@@ -72,8 +96,6 @@ void main() {
 
       await audio.returnToStart();
       expect(audio.worldAudioRequested, isFalse);
-      audio.dispose();
-      settings.dispose();
     },
   );
 }

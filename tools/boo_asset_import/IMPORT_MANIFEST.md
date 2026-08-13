@@ -44,7 +44,8 @@ their accepted sources.
   glow/translucency. They were retained rather than aggressively thresholded.
 
 Catalog paths, production file counts, hashes, pubspec registration,
-formatting, static analysis, and reference checks completed successfully. The
-20 verified source copies remain in `to_put_in_use/` because this environment
-declined the final deletion operation; they are staging only and are not
-registered in `pubspec.yaml` or referenced by runtime code.
+formatting, static analysis, and reference checks completed successfully. On
+2026-08-13, the 20 verified source copies were removed from `to_put_in_use/`
+after their byte-identical production imports and zero runtime/pubspec
+references were reconfirmed. All production artwork remains in
+`assets/mascot/boo/`.
